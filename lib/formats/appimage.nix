@@ -28,8 +28,8 @@ let
       url = "https://github.com/AppImage/type2-runtime/releases/download/continuous/runtime-${target.arch}";
       hash =
         {
-          "x86_64" = "sha256-HMSbzx4szVk8N5rbF8n4WjbWGQiCllBN6VsdBiFa678=";
-          "aarch64" = "sha256-fV13K3wy8MhMrwpFKjBypXCQJ9fqxYVv64mnp6iIE3I=";
+          "x86_64" = "HMSbzx4szVk8N5rbF8n4WjbWGQiCllBN6VsdBiFa678=";
+          "aarch64" = "118c57yj0fz2nph3y4jasssdhsbs0ivsk91f6i32w2pjbg0sh9vz";
         }
         .${target.arch} or null;
     in
