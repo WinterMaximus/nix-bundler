@@ -1,18 +1,16 @@
 # Filename-only smoke checks for the canonical `pkgs.hello` drv across every
 # format. Asserts that the bundler produces the expected artifact name under
 # `result/`.
-{ helpers }:
-
-let
-  inherit (helpers)
+{helpers}: let
+  inherit
+    (helpers)
     check
     drv
     drvWin
     info
     pkgs
     ;
-in
-{
+in {
   bundle-deb = check {
     name = "deb";
     format = "deb";
@@ -81,12 +79,14 @@ in
     name = "productbuild";
     format = "productbuild";
     inherit drv;
-    info = info // {
-      productbuild = {
-        title = "Hello Installer";
-        license = pkgs.writeText "license.txt" "MIT.";
+    info =
+      info
+      // {
+        productbuild = {
+          title = "Hello Installer";
+          license = pkgs.writeText "license.txt" "MIT.";
+        };
       };
-    };
     target = {
       arch = "x86_64";
       os = "darwin";

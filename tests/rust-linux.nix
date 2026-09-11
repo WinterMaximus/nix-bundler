@@ -1,9 +1,8 @@
 # End-to-end linux bundle tests: build a real Rust binary, bundle it, then
 # extract the artifact and assert the binary + manifest land correctly.
-{ helpers }:
-
-let
-  inherit (helpers)
+{helpers}: let
+  inherit
+    (helpers)
     e2e
     pkgs
     rustInfo
@@ -11,15 +10,14 @@ let
     rustName
     rustVersion
     ;
-in
-{
+in {
   rust-deb = e2e {
     name = "rust-deb";
     format = "deb";
     drv = rustLinux;
     info = rustInfo;
     expect = "${rustName}_${rustVersion}_amd64.deb";
-    probeInputs = [ pkgs.dpkg ];
+    probeInputs = [pkgs.dpkg];
     assertScript = ''
       tmp=$(mktemp -d)
       dpkg-deb -x "$artifact" "$tmp"
@@ -51,11 +49,13 @@ in
     name = "rust-archlinux";
     format = "archlinux";
     drv = rustLinux;
-    info = rustInfo // {
-      downloadUrl = "https://example.com/releases/${rustName}-bin-${rustVersion}-x86_64.tar.gz";
-    };
+    info =
+      rustInfo
+      // {
+        downloadUrl = "https://example.com/releases/${rustName}-bin-${rustVersion}-x86_64.tar.gz";
+      };
     expect = "${rustName}-${rustVersion}-1-x86_64.pkg.tar.zst";
-    probeInputs = [ pkgs.libarchive ];
+    probeInputs = [pkgs.libarchive];
     assertScript = ''
       tmp=$(mktemp -d)
       bsdtar --zstd -xf "$artifact" -C "$tmp"
@@ -108,7 +108,7 @@ in
     drv = rustLinux;
     info = rustInfo;
     expect = "${rustName}-${rustVersion}-x86_64-linux.zip";
-    probeInputs = [ pkgs.unzip ];
+    probeInputs = [pkgs.unzip];
     assertScript = ''
       tmp=$(mktemp -d)
       unzip -q "$artifact" -d "$tmp"

@@ -10,9 +10,7 @@
   format,
   meta,
   target,
-}:
-
-let
+}: let
   tarball = import ./tarball.nix {
     inherit
       pkgs
@@ -26,50 +24,52 @@ let
       target
       ;
     format = "tar.gz";
-    meta = meta // {
-      format = "tar.gz";
-    };
+    meta =
+      meta
+      // {
+        format = "tar.gz";
+      };
   };
 
   tarballFilename = "${meta.name}-${meta.version}-${target.arch}-${target.os}.tar.gz";
-  className =
-    let
-      s = meta.name;
-      head = lib.toUpper (builtins.substring 0 1 s);
-      tail = builtins.substring 1 (builtins.stringLength s) s;
-    in
+  className = let
+    s = meta.name;
+    head = lib.toUpper (builtins.substring 0 1 s);
+    tail = builtins.substring 1 (builtins.stringLength s) s;
+  in
     head + tail;
 
   url =
-    if meta.downloadUrl != "" then
-      meta.downloadUrl
-    else
-      "https://example.com/releases/${meta.version}/${tarballFilename}";
+    if meta.downloadUrl != ""
+    then meta.downloadUrl
+    else "https://example.com/releases/${meta.version}/${tarballFilename}";
 
-  brewDeps = meta.depends.brew or [ ];
+  brewDeps = meta.depends.brew or [];
 
   # Brew formula has to work on both macOS and Linuxbrew. Differences:
   # macOS uses `service` blocks for launchd, Linuxbrew can't register
   # system services. We emit `service do ... end` only if the user gave
   # darwin services; on linux brew it's a no-op and ignored gracefully.
   serviceBlock =
-    if meta.services == [ ] || target.os != "darwin" then
-      ""
-    else
-      let
-        s = builtins.head meta.services;
-        argv = builtins.filter (x: x != "") (lib.splitString " " s.exec);
-        rubyArgs = lib.concatMapStringsSep ", " (a: ''"${if lib.hasPrefix "/" a then a else a}"'') argv;
-      in
-      ''
+    if meta.services == [] || target.os != "darwin"
+    then ""
+    else let
+      s = builtins.head meta.services;
+      argv = builtins.filter (x: x != "") (lib.splitString " " s.exec);
+      rubyArgs = lib.concatMapStringsSep ", " (a: ''"${
+          if lib.hasPrefix "/" a
+          then a
+          else a
+        }"'') argv;
+    in ''
 
-        service do
-          run [${rubyArgs}]
-          run_type :immediate
-          keep_alive true
-          log_path var/"log/${meta.name}.log"
-          error_log_path var/"log/${meta.name}.err.log"
-        end'';
+      service do
+        run [${rubyArgs}]
+        run_type :immediate
+        keep_alive true
+        log_path var/"log/${meta.name}.log"
+        error_log_path var/"log/${meta.name}.err.log"
+      end'';
 
   formula = lib.concatStringsSep "\n" (
     [
@@ -90,7 +90,11 @@ let
       "    share.install Dir[\"share/*\"] if Dir.exist?(\"share\")"
       "  end"
     ]
-    ++ (if serviceBlock == "" then [ ] else [ serviceBlock ])
+    ++ (
+      if serviceBlock == ""
+      then []
+      else [serviceBlock]
+    )
     ++ [
       ""
       "  test do"
@@ -101,37 +105,37 @@ let
     ]
   );
 in
-pkgs.stdenv.mkDerivation {
-  name = "${meta.name}-${meta.version}-brew";
-  dontUnpack = true;
-  nativeBuildInputs = [
-    pkgs.coreutils
-    pkgs.gnused
-  ];
+  pkgs.stdenv.mkDerivation {
+    name = "${meta.name}-${meta.version}-brew";
+    dontUnpack = true;
+    nativeBuildInputs = [
+      pkgs.coreutils
+      pkgs.gnused
+    ];
 
-  buildCommand = ''
-    mkdir -p $out
-    cp ${tarball}/${tarballFilename} "$out/${tarballFilename}"
+    buildCommand = ''
+      mkdir -p $out
+      cp ${tarball}/${tarballFilename} "$out/${tarballFilename}"
 
-    sha=$(${pkgs.coreutils}/bin/sha256sum "$out/${tarballFilename}" | ${pkgs.coreutils}/bin/cut -d' ' -f1)
+      sha=$(${pkgs.coreutils}/bin/sha256sum "$out/${tarballFilename}" | ${pkgs.coreutils}/bin/cut -d' ' -f1)
 
-    cp ${pkgs.writeText "formula.rb" formula} "$out/${meta.name}.rb"
-    chmod u+w "$out/${meta.name}.rb"
-    ${pkgs.gnused}/bin/sed -i "s/PLACEHOLDER_SHA256_REPLACE_AFTER_UPLOAD/$sha/" "$out/${meta.name}.rb"
+      cp ${pkgs.writeText "formula.rb" formula} "$out/${meta.name}.rb"
+      chmod u+w "$out/${meta.name}.rb"
+      ${pkgs.gnused}/bin/sed -i "s/PLACEHOLDER_SHA256_REPLACE_AFTER_UPLOAD/$sha/" "$out/${meta.name}.rb"
 
-    cp ${pkgs.writeText "README-brew.txt" ''
-      Upload ${tarballFilename} to a public URL.
-      Edit ${meta.name}.rb and set the 'url' field to that URL.
-      Then publish ${meta.name}.rb in a tap repo, e.g. homebrew-tap.
+      cp ${pkgs.writeText "README-brew.txt" ''
+        Upload ${tarballFilename} to a public URL.
+        Edit ${meta.name}.rb and set the 'url' field to that URL.
+        Then publish ${meta.name}.rb in a tap repo, e.g. homebrew-tap.
 
-      Install with:
-        brew install --formula ./${meta.name}.rb
-    ''} "$out/README-brew.txt"
-  '';
+        Install with:
+          brew install --formula ./${meta.name}.rb
+      ''} "$out/README-brew.txt"
+    '';
 
-  passthru = {
-    info = meta;
-    inherit target format tarball;
-    outFile = "${meta.name}.rb";
-  };
-}
+    passthru = {
+      info = meta;
+      inherit target format tarball;
+      outFile = "${meta.name}.rb";
+    };
+  }

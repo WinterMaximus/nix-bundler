@@ -10,9 +10,7 @@
   format,
   meta,
   target,
-}:
-
-let
+}: let
   appBundle = import ./app.nix {
     inherit
       pkgs
@@ -31,12 +29,15 @@ let
   outFile = "${meta.name}-${meta.version}-${utils.darwinArch target.arch}.pkg";
 
   renderedServices = services.renderAllLaunchd meta.services;
-  hasServices = renderedServices != [ ];
+  hasServices = renderedServices != [];
 
   # When services are present we need files at two roots (/Applications and
   # /Library/LaunchDaemons), so we set install-location="/" and lay them out
   # under those subpaths in the Payload.
-  installLocation = if hasServices then "/" else "/Applications";
+  installLocation =
+    if hasServices
+    then "/"
+    else "/Applications";
 
   pkgInfoXML = ''
     <?xml version="1.0" encoding="utf-8"?>
@@ -50,8 +51,10 @@ let
         <bundle id="${meta.bundleId}"
                 CFBundleIdentifier="${meta.bundleId}"
                 path="${
-                  if hasServices then "./Applications/${meta.name}.app" else "./${meta.name}.app"
-                }"
+      if hasServices
+      then "./Applications/${meta.name}.app"
+      else "./${meta.name}.app"
+    }"
                 CFBundleVersion="${meta.version}"
                 CFBundleShortVersionString="${meta.version}"/>
       </bundle-version>
@@ -67,46 +70,46 @@ let
     # nix-bundle-app: load launchd services
     set -e
     ${lib.concatMapStringsSep "\n" (p: ''
-      /bin/launchctl load -w "/Library/LaunchDaemons/${p.filename}" 2>/dev/null || true
-    '') renderedServices}
+        /bin/launchctl load -w "/Library/LaunchDaemons/${p.filename}" 2>/dev/null || true
+      '')
+      renderedServices}
     exit 0
   '';
 in
-pkgs.stdenv.mkDerivation {
-  name = outFile;
-  dontUnpack = true;
-  nativeBuildInputs = [
-    pkgs.coreutils
-    pkgs.gnused
-    pkgs.gzip
-    pkgs.cpio
-    # xar + bomutils on every host so we never fall through to the tar-gzip
-    # fallback that Apple's `installer` refuses ("invalid package path").
-    pkgs.bomutils
-    pkgs.xar
-  ];
+  pkgs.stdenv.mkDerivation {
+    name = outFile;
+    dontUnpack = true;
+    nativeBuildInputs = [
+      pkgs.coreutils
+      pkgs.gnused
+      pkgs.gzip
+      pkgs.cpio
+      # xar + bomutils on every host so we never fall through to the tar-gzip
+      # fallback that Apple's `installer` refuses ("invalid package path").
+      pkgs.bomutils
+      pkgs.xar
+    ];
 
-  buildCommand =
-    let
+    buildCommand = let
       stageRoot = ''
         work=$PWD/build
         root=$work/root
         mkdir -p "$root"
         ${
-          if hasServices then
-            ''
-              mkdir -p "$root/Applications" "$root/Library/LaunchDaemons"
-              cp -r ${appBundle}/${meta.name}.app "$root/Applications/"
-              ${lib.concatMapStringsSep "\n" (p: ''
+          if hasServices
+          then ''
+            mkdir -p "$root/Applications" "$root/Library/LaunchDaemons"
+            cp -r ${appBundle}/${meta.name}.app "$root/Applications/"
+            ${lib.concatMapStringsSep "\n" (p: ''
                 cp ${pkgs.writeText p.filename p.content} \
                    "$root/Library/LaunchDaemons/${p.filename}"
                 chmod 644 "$root/Library/LaunchDaemons/${p.filename}"
-              '') renderedServices}
-            ''
-          else
-            ''
-              cp -r ${appBundle}/${meta.name}.app "$root/"
-            ''
+              '')
+              renderedServices}
+          ''
+          else ''
+            cp -r ${appBundle}/${meta.name}.app "$root/"
+          ''
         }
         chmod -R u+w "$root"
       '';
@@ -144,21 +147,20 @@ pkgs.stdenv.mkDerivation {
         ( cd "$flat" && xar --compression none -cf "$out/${outFile}" \
             PackageInfo Bom Payload ${lib.optionalString hasServices "Scripts"} )
       '';
-
     in
-    linuxBuild
-    + signing.emitSignScript {
-      inherit meta format;
-      artifactGlob = "*.pkg";
-    };
+      linuxBuild
+      + signing.emitSignScript {
+        inherit meta format;
+        artifactGlob = "*.pkg";
+      };
 
-  passthru = {
-    info = meta;
-    inherit
-      target
-      format
-      outFile
-      appBundle
-      ;
-  };
-}
+    passthru = {
+      info = meta;
+      inherit
+        target
+        format
+        outFile
+        appBundle
+        ;
+    };
+  }

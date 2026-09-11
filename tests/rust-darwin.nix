@@ -1,10 +1,9 @@
 # End-to-end darwin bundle tests for the Rust demo binary. Linux host build —
 # we extract the .app/.pkg/etc. payload to verify structure, since running the
 # binaries requires a darwin host.
-{ helpers }:
-
-let
-  inherit (helpers)
+{helpers}: let
+  inherit
+    (helpers)
     e2e
     pkgs
     rustInfo
@@ -17,8 +16,7 @@ let
     arch = "x86_64";
     os = "darwin";
   };
-in
-{
+in {
   rust-app = e2e {
     name = "rust-app";
     format = "app";
@@ -41,7 +39,7 @@ in
     info = rustInfo;
     target = darwinTarget;
     expect = "${rustName}-${rustVersion}-x86_64.pkg";
-    probeInputs = [ pkgs.xar ];
+    probeInputs = [pkgs.xar];
     assertScript = ''
       tmp=$(mktemp -d)
       ( cd "$tmp" && xar -xf "$artifact" )
@@ -55,16 +53,18 @@ in
     name = "rust-productbuild";
     format = "productbuild";
     drv = rustLinux;
-    info = rustInfo // {
-      productbuild = {
-        title = "Rust Demo Installer";
-        license = pkgs.writeText "license.txt" "BSD-2-Clause.";
-        welcome = pkgs.writeText "welcome.html" "<html><body>Welcome.</body></html>";
+    info =
+      rustInfo
+      // {
+        productbuild = {
+          title = "Rust Demo Installer";
+          license = pkgs.writeText "license.txt" "BSD-2-Clause.";
+          welcome = pkgs.writeText "welcome.html" "<html><body>Welcome.</body></html>";
+        };
       };
-    };
     target = darwinTarget;
     expect = "${rustName}-${rustVersion}-x86_64-install.pkg";
-    probeInputs = [ pkgs.xar ];
+    probeInputs = [pkgs.xar];
     assertScript = ''
       tmp=$(mktemp -d)
       ( cd "$tmp" && xar -xf "$artifact" )

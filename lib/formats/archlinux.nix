@@ -10,9 +10,7 @@
   format,
   meta,
   target,
-}:
-
-let
+}: let
   common = import ./_common-linux.nix {
     inherit
       pkgs
@@ -24,8 +22,8 @@ let
       ;
   };
   pkgArch = meta.archArch;
-  reqs = meta.depends.archlinux or [ ];
-  optDeps = meta.depends.archlinuxOptional or [ ];
+  reqs = meta.depends.archlinux or [];
+  optDeps = meta.depends.archlinuxOptional or [];
 
   mode = meta.archlinux.output;
   wantPkg = mode == "pkg" || mode == "both";
@@ -37,15 +35,17 @@ let
   # installer / install.md use of `releaseUrl`). Append the tarball
   # filename so PKGBUILD's `source=()` resolves to a real asset URL.
   downloadUrl =
-    if meta.downloadUrl != "" then
-      "${meta.downloadUrl}/${aurTarName}"
-    else
-      "https://example.com/releases/${aurTarName}";
+    if meta.downloadUrl != ""
+    then "${meta.downloadUrl}/${aurTarName}"
+    else "https://example.com/releases/${aurTarName}";
 
   # Where the AUR files live relative to $out:
   # - mode = "aur"  → directly in $out
   # - mode = "both" → in $out/aur (alongside the .pkg.tar.zst)
-  aurDirVar = if mode == "aur" then "$out" else "$out/aur";
+  aurDirVar =
+    if mode == "aur"
+    then "$out"
+    else "$out/aur";
 
   installScript = lib.optionalString (common.needsPostScripts meta) ''
     post_install() {
@@ -63,18 +63,19 @@ let
   '';
 
   pkgTopLevelDirs = common.stageTopLevelDirs meta;
-  packageCopyLines = lib.concatMapStringsSep "\n      " (
-    d: ''cp -a "\$srcdir/${d}" "\$pkgdir/"  2>/dev/null || true''
-  ) pkgTopLevelDirs;
+  packageCopyLines =
+    lib.concatMapStringsSep "\n      " (
+      d: ''cp -a "\$srcdir/${d}" "\$pkgdir/"  2>/dev/null || true''
+    )
+    pkgTopLevelDirs;
 
   depsArr = lib.concatMapStringsSep " " (d: "'" + d + "'") reqs;
   optDepsArr = lib.concatMapStringsSep " " (d: "'" + d + "'") optDeps;
 
   drvName =
-    if mode == "aur" then
-      "${aurPkgname}-${meta.version}-${pkgArch}.aur"
-    else
-      "${meta.name}-${meta.version}-1-${pkgArch}.pkg.tar.zst";
+    if mode == "aur"
+    then "${aurPkgname}-${meta.version}-${pkgArch}.aur"
+    else "${meta.name}-${meta.version}-1-${pkgArch}.pkg.tar.zst";
 
   pkgBlock = lib.optionalString wantPkg ''
     instSize=$(${pkgs.coreutils}/bin/du -sb "$stage" | ${pkgs.coreutils}/bin/cut -f1)
@@ -105,22 +106,24 @@ let
       echo "arch = ${pkgArch}"
       echo "license = ${meta.license}"
       ${
-        if meta.autoDepends then
-          ''
-            if [ -s arch-depends.csv ]; then
-              tr ',' '\n' < arch-depends.csv | while read -r d; do
-                [ -n "$d" ] && echo "depend = $d"
-              done
-            fi
-          ''
-        else
-          lib.concatMapStrings (d: ''
-            echo "depend = ${d}"
-          '') reqs
-      }
+      if meta.autoDepends
+      then ''
+        if [ -s arch-depends.csv ]; then
+          tr ',' '\n' < arch-depends.csv | while read -r d; do
+            [ -n "$d" ] && echo "depend = $d"
+          done
+        fi
+      ''
+      else
+        lib.concatMapStrings (d: ''
+          echo "depend = ${d}"
+        '')
+        reqs
+    }
       ${lib.concatMapStrings (d: ''
         echo "optdepend = ${d}"
-      '') optDeps}
+      '')
+      optDeps}
     } > "$stage/.PKGINFO"
 
     ${lib.optionalString (common.needsPostScripts meta) ''
@@ -174,7 +177,7 @@ let
     url='${meta.homepage}'
     license=('${meta.license}')
     depends=(${depsArr})
-    ${lib.optionalString (optDeps != [ ]) "optdepends=(${optDepsArr})"}
+    ${lib.optionalString (optDeps != []) "optdepends=(${optDepsArr})"}
     provides=("\''${_pkgname}=\''${pkgver}")
     conflicts=("\''${_pkgname}")
     source=("${downloadUrl}")
@@ -201,66 +204,70 @@ let
       echo "	license = ${meta.license}"
       ${lib.concatMapStrings (d: ''
         echo "	depends = ${d}"
-      '') reqs}
+      '')
+      reqs}
       ${lib.concatMapStrings (d: ''
         echo "	optdepends = ${d}"
-      '') optDeps}
+      '')
+      optDeps}
       echo "	provides = ${meta.name}=${meta.version}"
       echo "	conflicts = ${meta.name}"
       echo "	source = ${downloadUrl}"
       echo "	sha256sums = $aurSha"
       ${lib.optionalString (common.needsPostScripts meta) ''
-        echo "	install = ${aurPkgname}.install"
-      ''}
+      echo "	install = ${aurPkgname}.install"
+    ''}
       echo ""
       echo "pkgname = ${aurPkgname}"
     } > "$aurDir/.SRCINFO"
   '';
 in
-pkgs.stdenv.mkDerivation {
-  name = drvName;
-  dontUnpack = true;
-  nativeBuildInputs = with pkgs; [
-    libarchive
-    zstd
-    gzip
-    gnutar
-    patchelf
-    file
-    gnugrep
-    rsync
-    coreutils
-    gnused
-    gawk
-    findutils
-  ];
+  pkgs.stdenv.mkDerivation {
+    name = drvName;
+    dontUnpack = true;
+    nativeBuildInputs = with pkgs; [
+      libarchive
+      zstd
+      gzip
+      gnutar
+      patchelf
+      file
+      gnugrep
+      rsync
+      coreutils
+      gnused
+      gawk
+      findutils
+    ];
 
-  buildCommand = ''
-    stage=$PWD/stage
-    mkdir -p "$stage"
+    buildCommand = ''
+      stage=$PWD/stage
+      mkdir -p "$stage"
 
-    ${common.stageLinux {
-      inherit drv meta target;
-      stage = "$stage";
-    }}
+      ${common.stageLinux {
+        inherit drv meta target;
+        stage = "$stage";
+      }}
 
-    mkdir -p $out
+      mkdir -p $out
 
-    ${pkgBlock}
+      ${pkgBlock}
 
-    ${aurBlock}
+      ${aurBlock}
 
-    ${signing.emitSignScript {
-      inherit meta format;
-      artifactGlob = "*.pkg.tar.zst";
-    }}
-  '';
+      ${signing.emitSignScript {
+        inherit meta format;
+        artifactGlob = "*.pkg.tar.zst";
+      }}
+    '';
 
-  passthru = {
-    info = meta;
-    inherit target format;
-    archlinuxMode = mode;
-    outFile =
-      if mode == "aur" then "PKGBUILD" else "${meta.name}-${meta.version}-1-${pkgArch}.pkg.tar.zst";
-  };
-}
+    passthru = {
+      info = meta;
+      inherit target format;
+      archlinuxMode = mode;
+      outFile =
+        if mode == "aur"
+        then "PKGBUILD"
+        else "${meta.name}-${meta.version}-1-${pkgArch}.pkg.tar.zst";
+    };
+  }

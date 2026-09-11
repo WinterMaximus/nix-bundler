@@ -10,9 +10,7 @@
   format,
   meta,
   target,
-}:
-
-let
+}: let
   inner = import ./pkg.nix {
     inherit
       pkgs
@@ -26,9 +24,11 @@ let
       target
       ;
     format = "pkg";
-    meta = meta // {
-      format = "pkg";
-    };
+    meta =
+      meta
+      // {
+        format = "pkg";
+      };
   };
 
   innerFile = "${meta.name}-${meta.version}-${utils.darwinArch target.arch}.pkg";
@@ -37,16 +37,20 @@ let
   esc = utils.xmlEscape;
   pb = meta.productbuild;
 
-  title = if pb.title != null then pb.title else meta.name;
+  title =
+    if pb.title != null
+    then pb.title
+    else meta.name;
   organization =
-    if pb.organization != null then
-      pb.organization
-    else
-      let
-        parts = lib.splitString "." meta.bundleId;
-        n = builtins.length parts;
-      in
-      if n >= 2 then lib.concatStringsSep "." (lib.sublist 0 (n - 1) parts) else meta.bundleId;
+    if pb.organization != null
+    then pb.organization
+    else let
+      parts = lib.splitString "." meta.bundleId;
+      n = builtins.length parts;
+    in
+      if n >= 2
+      then lib.concatStringsSep "." (lib.sublist 0 (n - 1) parts)
+      else meta.bundleId;
 
   resourceRefs = {
     welcome = pb.welcome;
@@ -57,28 +61,30 @@ let
   };
   # Strip the store hash, keep the trailing extension. The Resources/ filename
   # ends up as `welcome.html` instead of `welcome-<hash>-welcome.html`.
-  extensionOf =
-    path:
-    let
-      m = builtins.match ".*(\\.[^./]+)$" (baseNameOf (toString path));
-    in
-    if m == null then "" else builtins.head m;
+  extensionOf = path: let
+    m = builtins.match ".*(\\.[^./]+)$" (baseNameOf (toString path));
+  in
+    if m == null
+    then ""
+    else builtins.head m;
   filenameFor = key: path: "${key}${extensionOf path}";
 
-  screenRef =
-    tag: key:
-    let
-      path = resourceRefs.${key};
-    in
-    if path == null then "" else "<${tag} file=\"${esc (filenameFor key path)}\"/>";
+  screenRef = tag: key: let
+    path = resourceRefs.${key};
+  in
+    if path == null
+    then ""
+    else "<${tag} file=\"${esc (filenameFor key path)}\"/>";
 
   bgRef =
-    if pb.background == null then
-      ""
-    else
-      "<background file=\"${esc (filenameFor "background" pb.background)}\" alignment=\"center\" scaling=\"proportional\"/>";
+    if pb.background == null
+    then ""
+    else "<background file=\"${esc (filenameFor "background" pb.background)}\" alignment=\"center\" scaling=\"proportional\"/>";
 
-  customize = if pb.allowCustomize then "always" else "never";
+  customize =
+    if pb.allowCustomize
+    then "always"
+    else "never";
 
   distributionXml = ''
     <?xml version="1.0" encoding="utf-8"?>
@@ -104,40 +110,36 @@ let
     </installer-gui-script>
   '';
 
-  copyResource =
-    key:
-    let
-      path = resourceRefs.${key};
-    in
+  copyResource = key: let
+    path = resourceRefs.${key};
+  in
     lib.optionalString (path != null) ''
       cp "${path}" "Resources/${filenameFor key path}"
     '';
 in
-pkgs.stdenv.mkDerivation (
-  {
-    name = outFile;
-    dontUnpack = true;
-    nativeBuildInputs = [
-      pkgs.coreutils
-      pkgs.gnused
-      pkgs.xar
-    ];
-  }
-  // lib.optionalAttrs pkgs.stdenv.isDarwin {
-    __impureHostDeps = [
-      "/usr/bin/productbuild"
-      "/usr/bin/pkgbuild"
-      "/System/Library/PrivateFrameworks/PackageKit.framework"
-      "/System/Library/Frameworks/CoreFoundation.framework"
-      "/System/Library/Frameworks/Security.framework"
-    ];
-    preferLocalBuild = true;
-    allowSubstitutes = false;
-  }
-  // {
-
-    buildCommand =
-      let
+  pkgs.stdenv.mkDerivation (
+    {
+      name = outFile;
+      dontUnpack = true;
+      nativeBuildInputs = [
+        pkgs.coreutils
+        pkgs.gnused
+        pkgs.xar
+      ];
+    }
+    // lib.optionalAttrs pkgs.stdenv.isDarwin {
+      __impureHostDeps = [
+        "/usr/bin/productbuild"
+        "/usr/bin/pkgbuild"
+        "/System/Library/PrivateFrameworks/PackageKit.framework"
+        "/System/Library/Frameworks/CoreFoundation.framework"
+        "/System/Library/Frameworks/Security.framework"
+      ];
+      preferLocalBuild = true;
+      allowSubstitutes = false;
+    }
+    // {
+      buildCommand = let
         stageInner = ''
           work=$PWD/dist
           mkdir -p "$work/Resources"
@@ -182,16 +184,20 @@ pkgs.stdenv.mkDerivation (
           fi
         '';
       in
-      (if pkgs.stdenv.isDarwin then darwinBuild else linuxBuild)
-      + signing.emitSignScript {
-        inherit meta format;
-        artifactGlob = "*-install.pkg";
-      };
+        (
+          if pkgs.stdenv.isDarwin
+          then darwinBuild
+          else linuxBuild
+        )
+        + signing.emitSignScript {
+          inherit meta format;
+          artifactGlob = "*-install.pkg";
+        };
 
-    passthru = {
-      info = meta;
-      inherit target format outFile;
-      componentPkg = inner;
-    };
-  }
-)
+      passthru = {
+        info = meta;
+        inherit target format outFile;
+        componentPkg = inner;
+      };
+    }
+  )

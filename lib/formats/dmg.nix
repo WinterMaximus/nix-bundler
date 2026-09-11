@@ -10,9 +10,7 @@
   format,
   meta,
   target,
-}:
-
-let
+}: let
   appBundle = import ./app.nix {
     inherit
       pkgs
@@ -30,36 +28,35 @@ let
   };
   outFile = "${meta.name}-${meta.version}-${utils.darwinArch target.arch}.dmg";
 in
-pkgs.stdenv.mkDerivation (
-  {
-    name = outFile;
-    dontUnpack = true;
-    # Linux: emit an HFS+ hybrid ISO that Finder mounts transparently.
-    # darwin: defer to hdiutil for a real UDIF DMG.
-    nativeBuildInputs = [
-      pkgs.coreutils
-      pkgs.gnused
-    ]
-    ++ lib.optionals pkgs.stdenv.isLinux [ pkgs.xorriso ];
-  }
-  // lib.optionalAttrs pkgs.stdenv.isDarwin {
-    # hdiutil lives outside the nix store and depends on system frameworks —
-    # let nix expose the host binary + its runtime deps into the sandbox and
-    # skip substitution (the output is host-dependent).
-    __impureHostDeps = [
-      "/usr/bin/hdiutil"
-      "/System/Library/PrivateFrameworks/DiskImages.framework"
-      "/System/Library/Frameworks/CoreServices.framework"
-      "/System/Library/Frameworks/CoreFoundation.framework"
-      "/System/Library/Frameworks/IOKit.framework"
-    ];
-    preferLocalBuild = true;
-    allowSubstitutes = false;
-  }
-  // {
-
-    buildCommand =
-      let
+  pkgs.stdenv.mkDerivation (
+    {
+      name = outFile;
+      dontUnpack = true;
+      # Linux: emit an HFS+ hybrid ISO that Finder mounts transparently.
+      # darwin: defer to hdiutil for a real UDIF DMG.
+      nativeBuildInputs =
+        [
+          pkgs.coreutils
+          pkgs.gnused
+        ]
+        ++ lib.optionals pkgs.stdenv.isLinux [pkgs.xorriso];
+    }
+    // lib.optionalAttrs pkgs.stdenv.isDarwin {
+      # hdiutil lives outside the nix store and depends on system frameworks —
+      # let nix expose the host binary + its runtime deps into the sandbox and
+      # skip substitution (the output is host-dependent).
+      __impureHostDeps = [
+        "/usr/bin/hdiutil"
+        "/System/Library/PrivateFrameworks/DiskImages.framework"
+        "/System/Library/Frameworks/CoreServices.framework"
+        "/System/Library/Frameworks/CoreFoundation.framework"
+        "/System/Library/Frameworks/IOKit.framework"
+      ];
+      preferLocalBuild = true;
+      allowSubstitutes = false;
+    }
+    // {
+      buildCommand = let
         linuxBuild = ''
           stage=$PWD/dmg-root
           mkdir -p "$stage"
@@ -98,20 +95,24 @@ pkgs.stdenv.mkDerivation (
           fi
         '';
       in
-      (if pkgs.stdenv.isDarwin then darwinBuild else linuxBuild)
-      + signing.emitSignScript {
-        inherit meta format;
-        artifactGlob = "*.dmg";
-      };
+        (
+          if pkgs.stdenv.isDarwin
+          then darwinBuild
+          else linuxBuild
+        )
+        + signing.emitSignScript {
+          inherit meta format;
+          artifactGlob = "*.dmg";
+        };
 
-    passthru = {
-      info = meta;
-      inherit
-        target
-        format
-        outFile
-        appBundle
-        ;
-    };
-  }
-)
+      passthru = {
+        info = meta;
+        inherit
+          target
+          format
+          outFile
+          appBundle
+          ;
+      };
+    }
+  )

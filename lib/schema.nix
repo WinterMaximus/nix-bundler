@@ -5,9 +5,7 @@
   format,
   config,
   ...
-}:
-
-let
+}: let
   inherit (lib) mkOption types literalExpression;
 
   desktopActionModule = {
@@ -81,7 +79,7 @@ let
       };
       categories = mkOption {
         type = types.listOf types.str;
-        default = [ "Utility" ];
+        default = ["Utility"];
         description = "XDG menu categories. Becomes `Categories=` (joined with `;`).";
         example = [
           "Development"
@@ -90,12 +88,12 @@ let
       };
       keywords = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "Search keywords. Becomes `Keywords=`.";
       };
       mimeTypes = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "MIME types handled by this entry. Becomes `MimeType=`.";
       };
       terminal = mkOption {
@@ -145,7 +143,7 @@ let
       };
       actions = mkOption {
         type = types.attrsOf (types.submodule desktopActionModule);
-        default = { };
+        default = {};
         description = "Context-menu actions. Each becomes a `[Desktop Action <key>]` section.";
         example = literalExpression ''
           {
@@ -162,7 +160,7 @@ let
             (types.listOf types.str)
           ]
         );
-        default = { };
+        default = {};
         description = "Arbitrary extra keys to embed in `[Desktop Entry]`.";
         example = literalExpression ''{ "X-AppImage-Version" = "1.0"; }'';
       };
@@ -178,22 +176,22 @@ let
     options = {
       unitOverrides = mkOption {
         type = types.attrsOf types.unspecified;
-        default = { };
+        default = {};
         description = "Extra `[Unit]` fields to set/override.";
       };
       serviceOverrides = mkOption {
         type = types.attrsOf types.unspecified;
-        default = { };
+        default = {};
         description = "Extra `[Service]` fields to set/override.";
       };
       installOverrides = mkOption {
         type = types.attrsOf types.unspecified;
-        default = { };
+        default = {};
         description = "Extra `[Install]` fields to set/override.";
       };
       wantedBy = mkOption {
         type = types.listOf types.str;
-        default = [ "multi-user.target" ];
+        default = ["multi-user.target"];
         description = "Targets that pull this unit in via `WantedBy=`.";
       };
     };
@@ -283,7 +281,7 @@ let
       };
       depends = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "Names of services this one depends on.";
       };
     };
@@ -323,7 +321,7 @@ let
       };
       environment = mkOption {
         type = types.attrsOf (types.either types.str types.int);
-        default = { };
+        default = {};
         description = "Environment variables for the service.";
         example = {
           LOG_LEVEL = "info";
@@ -351,17 +349,17 @@ let
       };
       after = mkOption {
         type = types.listOf types.str;
-        default = [ "network.target" ];
+        default = ["network.target"];
         description = "systemd ordering constraint.";
       };
       requires = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "systemd hard-dependency constraint.";
       };
       wants = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "systemd soft-dependency constraint.";
       };
       type = mkOption {
@@ -387,17 +385,17 @@ let
       };
       systemd = mkOption {
         type = types.submodule systemdOverridesModule;
-        default = { };
+        default = {};
         description = "systemd-specific overrides.";
       };
       launchd = mkOption {
         type = types.submodule launchdOverridesModule;
-        default = { };
+        default = {};
         description = "launchd-specific tuning.";
       };
       windows = mkOption {
         type = types.submodule windowsServiceModule;
-        default = { };
+        default = {};
         description = "Windows-service-specific settings.";
       };
     };
@@ -498,17 +496,17 @@ let
     options = {
       darwin = mkOption {
         type = types.submodule signingDarwinModule;
-        default = { };
+        default = {};
         description = "Per-platform signing settings — darwin (`rcodesign`).";
       };
       windows = mkOption {
         type = types.submodule signingWindowsModule;
-        default = { };
+        default = {};
         description = "Per-platform signing settings — windows (`osslsigncode`).";
       };
       linux = mkOption {
         type = types.submodule signingLinuxModule;
-        default = { };
+        default = {};
         description = "Per-platform signing settings — linux (GPG / dpkg-sig / rpmsign).";
       };
     };
@@ -551,7 +549,7 @@ let
       };
       extraModules = mkOption {
         type = types.listOf types.attrs;
-        default = [ ];
+        default = [];
         description = ''
           Extra `modules` entries appended to the generated manifest. Each
           should be an attrset matching the flatpak-builder schema (raw YAML
@@ -673,42 +671,42 @@ let
     options = {
       deb = mkOption {
         type = types.listOf types.str;
-        default = [ "libc6" ];
+        default = ["libc6"];
         description = "Debian `Depends:` list.";
       };
       rpm = mkOption {
         type = types.listOf types.str;
-        default = [ "glibc" ];
+        default = ["glibc"];
         description = "RPM `Requires:` list.";
       };
       archlinux = mkOption {
         type = types.listOf types.str;
-        default = [ "glibc" ];
+        default = ["glibc"];
         description = "Arch Linux `depends` list.";
       };
       brew = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "Homebrew `depends_on` formula names.";
       };
       nsis = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "(reserved; not yet used by the NSIS format).";
       };
       debRecommends = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "Debian `Recommends:` list.";
       };
       rpmRecommends = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "RPM `Recommends:` list.";
       };
       archlinuxOptional = mkOption {
         type = types.listOf types.str;
-        default = [ ];
+        default = [];
         description = "Arch Linux `optdepends` list.";
       };
       rpmGroup = mkOption {
@@ -718,8 +716,7 @@ let
       };
     };
   };
-in
-{
+in {
   options = {
     name = mkOption {
       type = types.str;
@@ -767,16 +764,14 @@ in
 
     license = mkOption {
       type = types.str;
-      default =
-        let
-          l = drv.meta.license or null;
-        in
-        if l == null then
-          "Unspecified"
-        else if builtins.isList l then
-          lib.concatMapStringsSep " AND " (x: x.spdxId or x.fullName or (toString x)) l
-        else
-          l.spdxId or l.fullName or (toString l);
+      default = let
+        l = drv.meta.license or null;
+      in
+        if l == null
+        then "Unspecified"
+        else if builtins.isList l
+        then lib.concatMapStringsSep " AND " (x: x.spdxId or x.fullName or (toString x)) l
+        else l.spdxId or l.fullName or (toString l);
       defaultText = literalExpression "derived from drv.meta.license";
       description = "License identifier — SPDX preferred.";
       example = "MIT";
@@ -803,13 +798,13 @@ in
 
     desktopEntries = mkOption {
       type = types.listOf (types.submodule desktopEntryModule);
-      default = [ ];
+      default = [];
       description = "Declarative XDG Desktop Entry definitions to ship on linux bundles. The first entry is also used as the AppImage top-level `.desktop`.";
     };
 
     services = mkOption {
       type = types.listOf (types.submodule serviceModule);
-      default = [ ];
+      default = [];
       description = ''
         Cross-OS background services. Materialised as systemd unit (`/lib/systemd/system/`)
         on linux, launchd plist (`/Library/LaunchDaemons/`) on macOS `.pkg`, and
@@ -819,7 +814,7 @@ in
 
     extraFiles = mkOption {
       type = types.attrsOf (types.either types.path types.str);
-      default = { };
+      default = {};
       description = ''
         Extra files dropped into the staged tree at fixed absolute paths.
         Keys are the destination paths inside the installed package
@@ -962,13 +957,13 @@ in
 
     depends = mkOption {
       type = types.submodule dependsModule;
-      default = { };
+      default = {};
       description = "Per-format runtime dependencies surfaced in manifests.";
     };
 
     productbuild = mkOption {
       type = types.submodule productbuildModule;
-      default = { };
+      default = {};
       description = ''
         Settings for the macOS `productbuild` distribution format. Drives the
         welcome / license / readme / conclusion screens and the installer chrome.
@@ -977,25 +972,25 @@ in
 
     archlinux = mkOption {
       type = types.submodule archlinuxModule;
-      default = { };
+      default = {};
       description = "Settings for the `archlinux` format (binary pkg vs AUR layout).";
     };
 
     flatpak = mkOption {
       type = types.submodule flatpakModule;
-      default = { };
+      default = {};
       description = "Settings for the `flatpak` format (manifest + source layout).";
     };
 
     snap = mkOption {
       type = types.submodule snapModule;
-      default = { };
+      default = {};
       description = "Settings for the `snap` format (`snapcraft.yaml` + source layout).";
     };
 
     signing = mkOption {
       type = types.submodule signingModule;
-      default = { };
+      default = {};
       description = ''
         Codesigning hooks. Bundles always build unsigned; when an entry is
         `enable = true` the corresponding format also drops a turnkey
@@ -1009,12 +1004,12 @@ in
       type = types.listOf (
         types.submodule {
           options = {
-            assertion = mkOption { type = types.bool; };
-            message = mkOption { type = types.str; };
+            assertion = mkOption {type = types.bool;};
+            message = mkOption {type = types.str;};
           };
         }
       );
-      default = [ ];
+      default = [];
       internal = true;
       visible = false;
       description = "Internal: cross-field consistency checks. Failures throw at evaluation time.";
@@ -1033,7 +1028,8 @@ in
       }
       {
         assertion =
-          config.appImageRuntime != null
+          config.appImageRuntime
+          != null
           || format != "appimage"
           || target.arch == "x86_64"
           || target.arch == "aarch64";
@@ -1042,7 +1038,7 @@ in
           + "Supply info.appImageRuntime for arch='${target.arch}'.";
       }
       {
-        assertion = config.services == [ ] || format != "appimage";
+        assertion = config.services == [] || format != "appimage";
         message =
           "info.services has no effect for the AppImage format — AppImages are "
           + "single-binary user apps, not system services. Use a deb/rpm/archlinux "
@@ -1062,10 +1058,10 @@ in
       }
       {
         assertion =
-          config.msiUpgradeCode == null
-          ||
-            builtins.match "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}" config.msiUpgradeCode
-            != null;
+          config.msiUpgradeCode
+          == null
+          || builtins.match "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}" config.msiUpgradeCode
+          != null;
         message =
           "info.msiUpgradeCode must be a GUID of shape "
           + "'XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX' (got '${toString config.msiUpgradeCode}').";

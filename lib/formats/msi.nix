@@ -10,23 +10,29 @@
   meta,
   target,
   ...
-}:
-
-let
-  winArch = if target.arch == "x86_64" then "x64" else target.arch;
+}: let
+  winArch =
+    if target.arch == "x86_64"
+    then "x64"
+    else target.arch;
   outFile = "${meta.name}-${meta.version}-${winArch}.msi";
 
   upgradeCode =
-    if meta.msiUpgradeCode or null != null then
-      meta.msiUpgradeCode
-    else
-      let
-        h = builtins.hashString "md5" meta.bundleId;
-      in
+    if meta.msiUpgradeCode or null != null
+    then meta.msiUpgradeCode
+    else let
+      h = builtins.hashString "md5" meta.bundleId;
+    in
       lib.toUpper "${builtins.substring 0 8 h}-${builtins.substring 8 4 h}-${builtins.substring 12 4 h}-${builtins.substring 16 4 h}-${builtins.substring 20 12 h}";
 
-  msiArchAttr = if target.arch == "x86_64" then ''Platform="x64"'' else "";
-  programFilesId = if target.arch == "x86_64" then "ProgramFiles64Folder" else "ProgramFilesFolder";
+  msiArchAttr =
+    if target.arch == "x86_64"
+    then ''Platform="x64"''
+    else "";
+  programFilesId =
+    if target.arch == "x86_64"
+    then "ProgramFiles64Folder"
+    else "ProgramFilesFolder";
 
   esc = utils.xmlEscape;
 
@@ -85,9 +91,11 @@ let
     </Wix>
   '';
 
-  writeServiceXmlFiles = lib.concatMapStringsSep "\n" (bn: ''
-    cp ${pkgs.writeText "msi-svc-${bn}.xml" svcXmlByBin.${bn}} "$svcdir/${bn}.xml"
-  '') svcBinNames;
+  writeServiceXmlFiles =
+    lib.concatMapStringsSep "\n" (bn: ''
+      cp ${pkgs.writeText "msi-svc-${bn}.xml" svcXmlByBin.${bn}} "$svcdir/${bn}.xml"
+    '')
+    svcBinNames;
 
   injectScript = ''
     awk -v inj_dir="$svcdir" -v binnames="${lib.concatStringsSep " " svcBinNames}" '
@@ -120,63 +128,71 @@ let
     mv components.wxs.new components.wxs
   '';
 in
-pkgs.stdenv.mkDerivation {
-  name = outFile;
-  dontUnpack = true;
-  nativeBuildInputs = with pkgs; [
-    msitools
-    coreutils
-    gnused
-    gawk
-    rsync
-    findutils
-  ];
+  pkgs.stdenv.mkDerivation {
+    name = outFile;
+    dontUnpack = true;
+    nativeBuildInputs = with pkgs; [
+      msitools
+      coreutils
+      gnused
+      gawk
+      rsync
+      findutils
+    ];
 
-  buildCommand = ''
-    mkdir -p payload
-    ${deps.copyBinaries drv "payload"}
-    ${deps.copyWindowsDlls drv "payload"}
-    if [ -d "${drv}/share" ]; then
-      ${pkgs.rsync}/bin/rsync -a --copy-links "${drv}/share/" "payload/share/" || true
-    fi
-    chmod -R u+w payload
+    buildCommand = ''
+      mkdir -p payload
+      ${deps.copyBinaries drv "payload"}
+      ${deps.copyWindowsDlls drv "payload"}
+      if [ -d "${drv}/share" ]; then
+        ${pkgs.rsync}/bin/rsync -a --copy-links "${drv}/share/" "payload/share/" || true
+      fi
+      chmod -R u+w payload
 
-    cp ${pkgs.writeText "installer.wxs" wxs} installer.wxs
-    ${pkgs.gnused}/bin/sed -i 's/^    //' installer.wxs
+      cp ${pkgs.writeText "installer.wxs" wxs} installer.wxs
+      ${pkgs.gnused}/bin/sed -i 's/^    //' installer.wxs
 
-    find payload -type f \
-      | wixl-heat \
-          --prefix "payload/" \
-          --var "var.SourceDir" \
-          --component-group MainComponents \
-          --directory-ref INSTALLFOLDER \
-          ${lib.optionalString (target.arch == "x86_64") "--win64"} \
-        > components.wxs
+      find payload -type f \
+        | wixl-heat \
+            --prefix "payload/" \
+            --var "var.SourceDir" \
+            --component-group MainComponents \
+            --directory-ref INSTALLFOLDER \
+            ${lib.optionalString (target.arch == "x86_64") "--win64"} \
+          > components.wxs
 
-    ${lib.optionalString (svcBinNames != [ ]) ''
-      svcdir=$PWD/svc-xml
-      mkdir -p "$svcdir"
-      ${writeServiceXmlFiles}
-      ${injectScript}
-    ''}
+      ${lib.optionalString (svcBinNames != []) ''
+        svcdir=$PWD/svc-xml
+        mkdir -p "$svcdir"
+        ${writeServiceXmlFiles}
+        ${injectScript}
+      ''}
 
-    wixl --arch ${if target.arch == "x86_64" then "x64" else "x86"} \
-         -D SourceDir=payload \
-         -D Win64=${if target.arch == "x86_64" then "yes" else "no"} \
-         -o "${outFile}" \
-         installer.wxs components.wxs
+      wixl --arch ${
+        if target.arch == "x86_64"
+        then "x64"
+        else "x86"
+      } \
+           -D SourceDir=payload \
+           -D Win64=${
+        if target.arch == "x86_64"
+        then "yes"
+        else "no"
+      } \
+           -o "${outFile}" \
+           installer.wxs components.wxs
 
-    mkdir -p $out
-    cp "${outFile}" "$out/${outFile}"
+      mkdir -p $out
+      cp "${outFile}" "$out/${outFile}"
 
-    ${signing.emitSignScript {
-      inherit meta format;
-      artifactGlob = "*.msi";
-    }}
-  '';
+      ${signing.emitSignScript {
+        inherit meta format;
+        artifactGlob = "*.msi";
+      }}
+    '';
 
-  passthru = {
-    info = meta;
-    inherit target format outFile;
-  };
-}
+    passthru = {
+      info = meta;
+      inherit target format outFile;
+    };
+  }

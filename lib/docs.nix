@@ -1,9 +1,7 @@
-{ pkgs }:
-
-let
+{pkgs}: let
   lib = pkgs.lib;
 
-  bundler = import ./default.nix { inherit pkgs; };
+  bundler = import ./default.nix {inherit pkgs;};
 
   fmtList = fmts: lib.concatMapStringsSep ", " (f: "`${f}`") fmts;
 
@@ -70,17 +68,16 @@ let
     ];
   };
 
-  publicOptions = removeAttrs evaluated.options [ "_module" ];
+  publicOptions = removeAttrs evaluated.options ["_module"];
 
   doc = pkgs.nixosOptionsDoc {
     options = publicOptions;
     # nixos-render-docs hardcodes nixpkgs as source-link base; drop the
     # `Declared by:` line so the rendered page doesn't point at a wrong repo.
-    transformOptions =
-      opt:
+    transformOptions = opt:
       opt
       // {
-        declarations = [ ];
+        declarations = [];
         visible = opt.visible && !(opt.internal or false);
       };
     warningsAreErrors = false;
@@ -96,7 +93,7 @@ let
 
   '';
 in
-pkgs.runCommand "nix-bundle-app-docs"
+  pkgs.runCommand "nix-bundle-app-docs"
   {
     meta.description = "Generated options reference for nix-bundle-app's info schema.";
   }

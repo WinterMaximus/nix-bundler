@@ -1,17 +1,22 @@
-{ pkgs, lib }:
-
+{
+  pkgs,
+  lib,
+}:
 # Codesigning helpers. Bundles ship unsigned out of the Nix sandbox (secrets
 # can't safely live in /nix/store). When `info.signing.<os>.enable = true`,
 # each format drops a turnkey `sign.sh` next to the artifact. Users run it
 # post-build, passing keys/passwords via env vars at runtime.
-
 let
   # rcodesign — Apple-style signing without a macOS host. Works on linux.
   darwinScript = cfg: artifactGlob: ''
     #!/usr/bin/env bash
     set -euo pipefail
     here=$(cd "$(dirname "$0")" && pwd)
-    : "''${P12_FILE:=${if cfg.p12File != null then toString cfg.p12File else ""}}"
+    : "''${P12_FILE:=${
+      if cfg.p12File != null
+      then toString cfg.p12File
+      else ""
+    }}"
     : "''${P12_PASSWORD:=}"
     : "''${TEAM_ID:=${cfg.teamId}}"
 
@@ -59,7 +64,11 @@ let
     #!/usr/bin/env bash
     set -euo pipefail
     here=$(cd "$(dirname "$0")" && pwd)
-    : "''${PKCS12_FILE:=${if cfg.pkcs12File != null then toString cfg.pkcs12File else ""}}"
+    : "''${PKCS12_FILE:=${
+      if cfg.pkcs12File != null
+      then toString cfg.pkcs12File
+      else ""
+    }}"
     : "''${PKCS12_PASSWORD:=}"
     : "''${TIMESTAMP_URL:=${cfg.timestampUrl}}"
 
@@ -186,57 +195,70 @@ let
   # Emits a `sign.sh` into $out if the relevant per-OS signing block is enabled.
   # Pass at the end of any format's buildCommand:
   #   ${signing.emitSignScript { inherit meta format; artifactGlob = "*.deb"; }}
-  emitSignScript =
-    {
-      meta,
-      format,
-      artifactGlob,
-    }:
-    let
-      script = pickScript {
-        signing = meta.signing;
-        inherit format artifactGlob;
-      };
-    in
-    if script == null then
-      ""
-    else
-      ''
-        cat > $out/sign.sh <<'SIGNEOF'
-        ${script}
-        SIGNEOF
-        chmod +x $out/sign.sh
-      '';
+  emitSignScript = {
+    meta,
+    format,
+    artifactGlob,
+  }: let
+    script = pickScript {
+      signing = meta.signing;
+      inherit format artifactGlob;
+    };
+  in
+    if script == null
+    then ""
+    else ''
+      cat > $out/sign.sh <<'SIGNEOF'
+      ${script}
+      SIGNEOF
+      chmod +x $out/sign.sh
+    '';
 
-  pickScript =
-    {
-      signing,
-      format,
-      artifactGlob,
-    }:
-    let
-      d = signing.darwin;
-      w = signing.windows;
-      l = signing.linux;
-    in
-    if format == "app" || format == "dmg" || format == "pkg" || format == "productbuild" then
-      if d.enable then darwinScript d artifactGlob else null
-    else if format == "nsis" || format == "exe" || format == "msi" then
-      if w.enable then windowsScript w artifactGlob else null
-    else if format == "deb" then
-      if l.enable then
-        (if l.style == "embedded" then dpkgSigScript l artifactGlob else gpgScript l artifactGlob)
-      else
-        null
-    else if format == "rpm" then
-      if l.enable then
-        (if l.style == "embedded" then rpmsignScript l artifactGlob else gpgScript l artifactGlob)
-      else
-        null
-    else if format == "appimage" || format == "archlinux" then
-      if l.enable then gpgScript l artifactGlob else null
-    else
-      null;
+  pickScript = {
+    signing,
+    format,
+    artifactGlob,
+  }: let
+    d = signing.darwin;
+    w = signing.windows;
+    l = signing.linux;
+  in
+    if format == "app" || format == "dmg" || format == "pkg" || format == "productbuild"
+    then
+      if d.enable
+      then darwinScript d artifactGlob
+      else null
+    else if format == "nsis" || format == "exe" || format == "msi"
+    then
+      if w.enable
+      then windowsScript w artifactGlob
+      else null
+    else if format == "deb"
+    then
+      if l.enable
+      then
+        (
+          if l.style == "embedded"
+          then dpkgSigScript l artifactGlob
+          else gpgScript l artifactGlob
+        )
+      else null
+    else if format == "rpm"
+    then
+      if l.enable
+      then
+        (
+          if l.style == "embedded"
+          then rpmsignScript l artifactGlob
+          else gpgScript l artifactGlob
+        )
+      else null
+    else if format == "appimage" || format == "archlinux"
+    then
+      if l.enable
+      then gpgScript l artifactGlob
+      else null
+    else null;
   # Builds a flake `app` that:
   #   1. Stages a fresh copy of the unsigned bundle into a temp dir (or $1)
   #   2. Runs `sign.sh` (which reads secrets from the caller's env vars)
@@ -245,46 +267,42 @@ let
   # and runs `GPG_KEY_ID=… nix run .#<name> -- ./dist` to produce a signed bundle
   # without touching `result/sign.sh` manually. The underlying `bundle` derivation
   # stays pure + cacheable.
-  signedApp =
-    {
-      bundle,
-      name ? "${baseNameOf bundle.name}-sign",
-    }:
-    let
-      script = pkgs.writeShellApplication {
-        inherit name;
-        runtimeInputs = with pkgs; [
-          coreutils
-          bash
-        ];
-        text = ''
-          set -euo pipefail
-          bundle=${bundle}
-          if [ "$#" -ge 1 ]; then
-            target=$1
-            mkdir -p "$target"
-          else
-            target=$(mktemp -d -t "${name}-XXXX")
-          fi
-          cp -r --no-preserve=mode,ownership "$bundle"/. "$target"/
-          chmod -R u+w "$target"
-          if [ -x "$target/sign.sh" ]; then
-            ( cd "$target" && bash ./sign.sh )
-            rm -f "$target/sign.sh"
-            echo
-            echo "Signed bundle ready at: $target"
-          else
-            echo "warning: $bundle has no sign.sh (info.signing.<os>.enable not set)" >&2
-            echo "Bundle copied unmodified to: $target"
-          fi
-        '';
-      };
-    in
-    {
-      type = "app";
-      program = "${script}/bin/${name}";
+  signedApp = {
+    bundle,
+    name ? "${baseNameOf bundle.name}-sign",
+  }: let
+    script = pkgs.writeShellApplication {
+      inherit name;
+      runtimeInputs = with pkgs; [
+        coreutils
+        bash
+      ];
+      text = ''
+        set -euo pipefail
+        bundle=${bundle}
+        if [ "$#" -ge 1 ]; then
+          target=$1
+          mkdir -p "$target"
+        else
+          target=$(mktemp -d -t "${name}-XXXX")
+        fi
+        cp -r --no-preserve=mode,ownership "$bundle"/. "$target"/
+        chmod -R u+w "$target"
+        if [ -x "$target/sign.sh" ]; then
+          ( cd "$target" && bash ./sign.sh )
+          rm -f "$target/sign.sh"
+          echo
+          echo "Signed bundle ready at: $target"
+        else
+          echo "warning: $bundle has no sign.sh (info.signing.<os>.enable not set)" >&2
+          echo "Bundle copied unmodified to: $target"
+        fi
+      '';
     };
-in
-{
+  in {
+    type = "app";
+    program = "${script}/bin/${name}";
+  };
+in {
   inherit pickScript emitSignScript signedApp;
 }

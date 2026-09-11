@@ -1,42 +1,37 @@
-{ lib }:
+{lib}: rec {
+  parseSystem = system: let
+    parts = builtins.split "-" system;
+    arch = builtins.elemAt parts 0;
+    os = builtins.elemAt parts 2;
+  in {
+    inherit arch;
+    os =
+      if os == "darwin"
+      then "darwin"
+      else os;
+  };
 
-rec {
-  parseSystem =
-    system:
-    let
-      parts = builtins.split "-" system;
-      arch = builtins.elemAt parts 0;
-      os = builtins.elemAt parts 2;
-    in
-    {
-      inherit arch;
-      os = if os == "darwin" then "darwin" else os;
-    };
-
-  detectTargetFromDrv =
-    drv:
-    let
-      sys = drv.system or drv.stdenv.hostPlatform.system or "x86_64-linux";
-      p = parseSystem sys;
-    in
+  detectTargetFromDrv = drv: let
+    sys = drv.system or drv.stdenv.hostPlatform.system or "x86_64-linux";
+    p = parseSystem sys;
+  in
     normalizeTarget p;
 
-  normalizeTarget =
-    t:
-    if builtins.isString t then
-      parseSystem t
-    else
-      let
-        os' = t.os;
-        os = if os' == "macos" then "darwin" else os';
-      in
-      {
-        inherit (t) arch;
-        inherit os;
-      };
+  normalizeTarget = t:
+    if builtins.isString t
+    then parseSystem t
+    else let
+      os' = t.os;
+      os =
+        if os' == "macos"
+        then "darwin"
+        else os';
+    in {
+      inherit (t) arch;
+      inherit os;
+    };
 
-  debArch =
-    arch:
+  debArch = arch:
     {
       "x86_64" = "amd64";
       "aarch64" = "arm64";
@@ -45,10 +40,11 @@ rec {
       "i686" = "i386";
       "riscv64" = "riscv64";
     }
-    .${arch} or arch;
+    .${
+      arch
+    } or arch;
 
-  rpmArch =
-    arch:
+  rpmArch = arch:
     {
       "x86_64" = "x86_64";
       "aarch64" = "aarch64";
@@ -56,10 +52,11 @@ rec {
       "i686" = "i386";
       "riscv64" = "riscv64";
     }
-    .${arch} or arch;
+    .${
+      arch
+    } or arch;
 
-  archArch =
-    arch:
+  archArch = arch:
     {
       "x86_64" = "x86_64";
       "aarch64" = "aarch64";
@@ -67,18 +64,20 @@ rec {
       "armv7l" = "armv7h";
       "armv6l" = "armv6h";
     }
-    .${arch} or arch;
+    .${
+      arch
+    } or arch;
 
-  darwinArch =
-    arch:
+  darwinArch = arch:
     {
       "x86_64" = "x86_64";
       "aarch64" = "arm64";
     }
-    .${arch} or arch;
+    .${
+      arch
+    } or arch;
 
-  linuxInterp =
-    arch:
+  linuxInterp = arch:
     {
       "x86_64" = "/lib64/ld-linux-x86-64.so.2";
       "aarch64" = "/lib/ld-linux-aarch64.so.1";
@@ -87,27 +86,29 @@ rec {
       "armv6l" = "/lib/ld-linux-armhf.so.3";
       "riscv64" = "/lib/ld-linux-riscv64-lp64d.so.1";
     }
-    .${arch} or null;
+    .${
+      arch
+    } or null;
 
-  shellQuote = s: "'" + builtins.replaceStrings [ "'" ] [ "'\\''" ] s + "'";
+  shellQuote = s: "'" + builtins.replaceStrings ["'"] ["'\\''"] s + "'";
 
-  xmlEscape =
-    s: builtins.replaceStrings [ "&" "<" ">" "\"" "'" ] [ "&amp;" "&lt;" "&gt;" "&quot;" "&apos;" ] s;
+  xmlEscape = s: builtins.replaceStrings ["&" "<" ">" "\"" "'"] ["&amp;" "&lt;" "&gt;" "&quot;" "&apos;"] s;
 
-  sanitizeName =
-    s:
-    let
-      ok =
-        c:
-        (c >= "a" && c <= "z")
-        || (c >= "A" && c <= "Z")
-        || (c >= "0" && c <= "9")
-        || c == "-"
-        || c == "_"
-        || c == ".";
-      chars = lib.stringToCharacters s;
-    in
-    lib.concatStrings (map (c: if ok c then c else "-") chars);
+  sanitizeName = s: let
+    ok = c:
+      (c >= "a" && c <= "z")
+      || (c >= "A" && c <= "Z")
+      || (c >= "0" && c <= "9")
+      || c == "-"
+      || c == "_"
+      || c == ".";
+    chars = lib.stringToCharacters s;
+  in
+    lib.concatStrings (map (c:
+      if ok c
+      then c
+      else "-")
+    chars);
 
   # Debian package-name policy: lowercase alphanumerics + `-+.` only,
   # must start with an alphanumeric. dpkg-deb --build rejects anything
@@ -116,19 +117,23 @@ rec {
   # chosen name isn't already debian-compliant. Install paths stay on
   # the upstream `meta.name` so symlink locations are consistent across
   # distros — only the deb-visible identifier is rewritten.
-  debName =
-    s:
-    let
-      lower = lib.toLower s;
-      ok = c: (c >= "a" && c <= "z") || (c >= "0" && c <= "9") || c == "-" || c == "+" || c == ".";
-      chars = lib.stringToCharacters lower;
-      mapped = lib.concatStrings (map (c: if ok c then c else "-") chars);
-      # Strip leading non-alphanumeric to satisfy the "must start with
-      # alphanumeric" rule. Cheap belt-and-suspenders — typical inputs
-      # already start with a letter.
-      startsAlnum = c: (c >= "a" && c <= "z") || (c >= "0" && c <= "9");
-      stripped =
-        if mapped == "" || startsAlnum (builtins.substring 0 1 mapped) then mapped else "p-" + mapped;
-    in
+  debName = s: let
+    lower = lib.toLower s;
+    ok = c: (c >= "a" && c <= "z") || (c >= "0" && c <= "9") || c == "-" || c == "+" || c == ".";
+    chars = lib.stringToCharacters lower;
+    mapped = lib.concatStrings (map (c:
+      if ok c
+      then c
+      else "-")
+    chars);
+    # Strip leading non-alphanumeric to satisfy the "must start with
+    # alphanumeric" rule. Cheap belt-and-suspenders — typical inputs
+    # already start with a letter.
+    startsAlnum = c: (c >= "a" && c <= "z") || (c >= "0" && c <= "9");
+    stripped =
+      if mapped == "" || startsAlnum (builtins.substring 0 1 mapped)
+      then mapped
+      else "p-" + mapped;
+  in
     stripped;
 }

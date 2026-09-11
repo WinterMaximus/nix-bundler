@@ -1,15 +1,13 @@
-{ pkgs }:
-
-let
+{pkgs}: let
   lib = pkgs.lib;
 
-  utils = import ./utils.nix { inherit lib; };
-  desktop = import ./desktop.nix { inherit lib; };
-  services = import ./services.nix { inherit lib utils; };
-  infoLib = import ./info.nix { inherit lib utils; };
-  deps = import ./deps.nix { inherit pkgs lib utils; };
-  signing = import ./signing.nix { inherit pkgs lib; };
-  releaseLib = import ./release.nix { inherit pkgs lib; };
+  utils = import ./utils.nix {inherit lib;};
+  desktop = import ./desktop.nix {inherit lib;};
+  services = import ./services.nix {inherit lib utils;};
+  infoLib = import ./info.nix {inherit lib utils;};
+  deps = import ./deps.nix {inherit pkgs lib utils;};
+  signing = import ./signing.nix {inherit pkgs lib;};
+  releaseLib = import ./release.nix {inherit pkgs lib;};
 
   formatModules = {
     deb = import ./formats/deb.nix;
@@ -57,48 +55,50 @@ let
     zip = "any";
   };
 
-  resolveTarget =
-    drv: target: if target != null then utils.normalizeTarget target else utils.detectTargetFromDrv drv;
+  resolveTarget = drv: target:
+    if target != null
+    then utils.normalizeTarget target
+    else utils.detectTargetFromDrv drv;
 
   # `formatOS` values can be: a single os string ("linux"), the wildcard "any",
   # or a list of os strings (e.g. brew = ["linux" "darwin"]).
-  osMatches =
-    spec: os: if builtins.isList spec then builtins.elem os spec else spec == "any" || spec == os;
+  osMatches = spec: os:
+    if builtins.isList spec
+    then builtins.elem os spec
+    else spec == "any" || spec == os;
 
   # Per-OS format lists, auto-derived from `formatOS`. Wildcards ("any") and
   # multi-OS specs are folded into each matching bucket so consumers iterate one
   # list per platform without hardcoding.
-  targetsByOS =
-    let
-      formatsFor = os: builtins.attrNames (lib.filterAttrs (_: v: osMatches v os) formatOS);
-      anyFmts = builtins.attrNames (lib.filterAttrs (_: v: v == "any") formatOS);
-    in
-    {
-      linux = lib.sort (a: b: a < b) (formatsFor "linux");
-      darwin = lib.sort (a: b: a < b) (formatsFor "darwin");
-      windows = lib.sort (a: b: a < b) (formatsFor "windows");
-      any = anyFmts;
-    };
+  targetsByOS = let
+    formatsFor = os: builtins.attrNames (lib.filterAttrs (_: v: osMatches v os) formatOS);
+    anyFmts = builtins.attrNames (lib.filterAttrs (_: v: v == "any") formatOS);
+  in {
+    linux = lib.sort (a: b: a < b) (formatsFor "linux");
+    darwin = lib.sort (a: b: a < b) (formatsFor "darwin");
+    windows = lib.sort (a: b: a < b) (formatsFor "windows");
+    any = anyFmts;
+  };
 
-  bundle =
-    {
-      drv,
-      format,
-      info ? { },
-      target ? null,
-    }:
-    let
-      mod =
-        formatModules.${format}
+  bundle = {
+    drv,
+    format,
+    info ? {},
+    target ? null,
+  }: let
+    mod =
+      formatModules.${format}
           or (throw "nix-bundle-app: unknown format '${format}'. Supported: ${lib.concatStringsSep ", " (builtins.attrNames formatModules)}");
-      t = resolveTarget drv target;
-      allowedOS = formatOS.${format};
-      allowedDesc = if builtins.isList allowedOS then lib.concatStringsSep "|" allowedOS else allowedOS;
-      meta =
-        assert lib.assertMsg (osMatches allowedOS t.os)
-          "nix-bundle-app: format '${format}' requires os='${allowedDesc}', got os='${t.os}'.";
-        infoLib.normalize info drv t format;
-    in
+    t = resolveTarget drv target;
+    allowedOS = formatOS.${format};
+    allowedDesc =
+      if builtins.isList allowedOS
+      then lib.concatStringsSep "|" allowedOS
+      else allowedOS;
+    meta = assert lib.assertMsg (osMatches allowedOS t.os)
+    "nix-bundle-app: format '${format}' requires os='${allowedDesc}', got os='${t.os}'.";
+      infoLib.normalize info drv t format;
+  in
     mod {
       inherit
         pkgs
@@ -115,26 +115,24 @@ let
       target = t;
     };
 
-  bundleAll =
-    {
-      drv,
-      formats,
-      info ? { },
-      target ? null,
-    }:
-    let
-      built = map (fmt: {
+  bundleAll = {
+    drv,
+    formats,
+    info ? {},
+    target ? null,
+  }: let
+    built =
+      map (fmt: {
         name = fmt;
         path = bundle {
           inherit drv info target;
           format = fmt;
         };
-      }) formats;
-    in
+      })
+      formats;
+  in
     pkgs.linkFarm "${drv.pname or drv.name or "bundle"}-bundles" built;
-
-in
-{
+in {
   inherit
     bundle
     bundleAll

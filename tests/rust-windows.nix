@@ -1,9 +1,8 @@
 # End-to-end windows bundle tests for the Rust demo binary. Built via
 # `pkgsCross.mingwW64.rustPlatform` on a linux host.
-{ helpers }:
-
-let
-  inherit (helpers)
+{helpers}: let
+  inherit
+    (helpers)
     e2e
     pkgs
     rustInfo
@@ -16,8 +15,7 @@ let
     arch = "x86_64";
     os = "windows";
   };
-in
-{
+in {
   rust-nsis = e2e {
     name = "rust-nsis";
     format = "nsis";
@@ -36,19 +34,21 @@ in
     name = "rust-msi";
     format = "msi";
     drv = rustWindows;
-    info = rustInfo // {
-      services = [
-        {
-          name = "rust-demo";
-          exec = "${rustName}.exe --daemon";
-          description = "Rust demo service";
-          windows.serviceName = "RustDemo";
-        }
-      ];
-    };
+    info =
+      rustInfo
+      // {
+        services = [
+          {
+            name = "rust-demo";
+            exec = "${rustName}.exe --daemon";
+            description = "Rust demo service";
+            windows.serviceName = "RustDemo";
+          }
+        ];
+      };
     target = winTarget;
     expect = "${rustName}-${rustVersion}-x64.msi";
-    probeInputs = [ pkgs.msitools ];
+    probeInputs = [pkgs.msitools];
     assertScript = ''
       msiinfo export "$artifact" File           | grep -F "${rustName}.exe"
       msiinfo export "$artifact" ServiceInstall | grep -F "RustDemo"
@@ -63,7 +63,7 @@ in
     info = rustInfo;
     target = winTarget;
     expect = "${rustName}-${rustVersion}-x86_64-windows.zip";
-    probeInputs = [ pkgs.unzip ];
+    probeInputs = [pkgs.unzip];
     assertScript = ''
       tmp=$(mktemp -d)
       unzip -q "$artifact" -d "$tmp"

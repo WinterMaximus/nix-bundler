@@ -1,15 +1,18 @@
-{ pkgs, bundler }:
-
-let
+{
+  pkgs,
+  bundler,
+}: let
   drv = pkgs.hello;
-  drvWin = if pkgs.stdenv.isLinux then pkgs.pkgsCross.mingwW64.hello else pkgs.hello;
+  drvWin =
+    if pkgs.stdenv.isLinux
+    then pkgs.pkgsCross.mingwW64.hello
+    else pkgs.hello;
 
   rustSrc = ./rust;
   rustName = "nix-bundle-app-rust-demo";
   rustVersion = "0.1.0";
 
-  buildRust =
-    rp:
+  buildRust = rp:
     rp.buildRustPackage {
       pname = rustName;
       version = rustVersion;
@@ -20,7 +23,9 @@ let
 
   rustLinux = buildRust pkgs.rustPlatform;
   rustWindows =
-    if pkgs.stdenv.isLinux then buildRust pkgs.pkgsCross.mingwW64.rustPlatform else rustLinux;
+    if pkgs.stdenv.isLinux
+    then buildRust pkgs.pkgsCross.mingwW64.rustPlatform
+    else rustLinux;
 
   info = {
     homepage = "https://example.com";
@@ -28,33 +33,33 @@ let
     license = "GPL-3.0";
   };
 
-  rustInfo = info // {
-    name = rustName;
-    version = rustVersion;
-    summary = "nix-bundle-app rust E2E demo";
-    longDescription = "Tiny rust binary used to validate end-to-end bundling.";
-  };
+  rustInfo =
+    info
+    // {
+      name = rustName;
+      version = rustVersion;
+      summary = "nix-bundle-app rust E2E demo";
+      longDescription = "Tiny rust binary used to validate end-to-end bundling.";
+    };
 
-  check =
-    {
-      name,
-      format,
-      drv,
-      target ? null,
-      info ? { },
-      expect,
-    }:
-    let
-      built = bundler.bundle {
-        inherit
-          drv
-          format
-          info
-          target
-          ;
-      };
-    in
-    pkgs.runCommand "check-${name}" { } ''
+  check = {
+    name,
+    format,
+    drv,
+    target ? null,
+    info ? {},
+    expect,
+  }: let
+    built = bundler.bundle {
+      inherit
+        drv
+        format
+        info
+        target
+        ;
+    };
+  in
+    pkgs.runCommand "check-${name}" {} ''
       if [ ! -d "${built}" ]; then
         echo "bundle output missing: ${built}" >&2; exit 1
       fi
@@ -74,28 +79,26 @@ let
       echo "ok ${name}" > $out/result
     '';
 
-  e2e =
-    {
-      name,
-      format,
-      drv,
-      target ? null,
-      info ? { },
-      expect,
-      probeInputs ? [ ],
-      assertScript,
-    }:
-    let
-      built = bundler.bundle {
-        inherit
-          drv
-          format
-          info
-          target
-          ;
-      };
-    in
-    pkgs.runCommand "e2e-${name}" { nativeBuildInputs = probeInputs; } ''
+  e2e = {
+    name,
+    format,
+    drv,
+    target ? null,
+    info ? {},
+    expect,
+    probeInputs ? [],
+    assertScript,
+  }: let
+    built = bundler.bundle {
+      inherit
+        drv
+        format
+        info
+        target
+        ;
+    };
+  in
+    pkgs.runCommand "e2e-${name}" {nativeBuildInputs = probeInputs;} ''
       set -euo pipefail
       shopt -s nullglob
       candidates=( ${built}/${expect} )
@@ -110,8 +113,7 @@ let
       mkdir -p $out
       echo "ok ${name}" > $out/result
     '';
-in
-{
+in {
   inherit
     pkgs
     check

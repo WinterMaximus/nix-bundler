@@ -11,12 +11,10 @@
   meta,
   target,
 }:
-
 # Produces a flatpak source layout (manifest YAML + source tarball + helper
 # build script). Doesn't run `flatpak-builder` itself — that needs network
 # access to fetch the runtime, which Nix sandbox forbids. User runs
 # `./build.sh` on a flatpak-enabled host to materialise the `.flatpak`.
-
 let
   common = import ./_common-linux.nix {
     inherit
@@ -31,16 +29,18 @@ let
 
   fp = meta.flatpak;
   appId = meta.bundleId;
-  command = if fp.command != null then fp.command else meta.name;
+  command =
+    if fp.command != null
+    then fp.command
+    else meta.name;
   tarName = "${meta.name}-${meta.version}.tar.gz";
 
   finishArgsYaml = lib.concatMapStringsSep "\n" (a: "  - ${a}") fp.finishArgs;
 
   extraModulesYaml =
-    if fp.extraModules == [ ] then
-      ""
-    else
-      lib.concatMapStringsSep "\n" (m: "  - " + builtins.toJSON m) fp.extraModules;
+    if fp.extraModules == []
+    then ""
+    else lib.concatMapStringsSep "\n" (m: "  - " + builtins.toJSON m) fp.extraModules;
 
   manifestYaml = ''
     app-id: ${appId}
@@ -89,49 +89,49 @@ let
     echo "Built: $here/$OUTPUT"
   '';
 in
-pkgs.stdenv.mkDerivation {
-  name = "${meta.name}-${meta.version}-flatpak-source";
-  dontUnpack = true;
-  nativeBuildInputs = with pkgs; [
-    gnutar
-    gzip
-    coreutils
-    patchelf
-    file
-    gnugrep
-    rsync
-    gnused
-    gawk
-    findutils
-  ];
+  pkgs.stdenv.mkDerivation {
+    name = "${meta.name}-${meta.version}-flatpak-source";
+    dontUnpack = true;
+    nativeBuildInputs = with pkgs; [
+      gnutar
+      gzip
+      coreutils
+      patchelf
+      file
+      gnugrep
+      rsync
+      gnused
+      gawk
+      findutils
+    ];
 
-  buildCommand = ''
-    set -euo pipefail
-    stage=$PWD/stage
-    mkdir -p "$stage"
+    buildCommand = ''
+      set -euo pipefail
+      stage=$PWD/stage
+      mkdir -p "$stage"
 
-    ${common.stageLinux {
-      inherit drv meta target;
-      stage = "$stage";
-    }}
+      ${common.stageLinux {
+        inherit drv meta target;
+        stage = "$stage";
+      }}
 
-    mkdir -p $out
-    ( cd "$stage" && ${pkgs.gnutar}/bin/tar --owner=0 --group=0 --sort=name \
-        -czf "$out/${tarName}" . )
+      mkdir -p $out
+      ( cd "$stage" && ${pkgs.gnutar}/bin/tar --owner=0 --group=0 --sort=name \
+          -czf "$out/${tarName}" . )
 
-    cp ${pkgs.writeText "${appId}.yaml" manifestYaml} "$out/${appId}.yaml"
-    cp ${pkgs.writeShellScript "build.sh" buildScript} "$out/build.sh"
-    chmod +x "$out/build.sh"
+      cp ${pkgs.writeText "${appId}.yaml" manifestYaml} "$out/${appId}.yaml"
+      cp ${pkgs.writeShellScript "build.sh" buildScript} "$out/build.sh"
+      chmod +x "$out/build.sh"
 
-    ${signing.emitSignScript {
-      inherit meta format;
-      artifactGlob = "*.flatpak";
-    }}
-  '';
+      ${signing.emitSignScript {
+        inherit meta format;
+        artifactGlob = "*.flatpak";
+      }}
+    '';
 
-  passthru = {
-    info = meta;
-    inherit target format;
-    outFile = "${appId}.yaml";
-  };
-}
+    passthru = {
+      info = meta;
+      inherit target format;
+      outFile = "${appId}.yaml";
+    };
+  }

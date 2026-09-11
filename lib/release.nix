@@ -1,5 +1,7 @@
-{ pkgs, lib }:
-
+{
+  pkgs,
+  lib,
+}:
 # Generates a "ready-to-upload" release directory: every bundle artifact in
 # the matrix + an `install.sh` (Linux/macOS) + `install.ps1` (Windows) +
 # `SHA256SUMS`.
@@ -19,569 +21,555 @@
 # `--format X` forces a specific format (must be configured for the host).
 # Any format not in the matrix is silently skipped from the fallback chain,
 # so users only get install logic for what the bundler actually emits.
-
 let
-  archToUname =
-    a:
+  archToUname = a:
     {
       "x86_64" = "x86_64";
       "aarch64" = "aarch64";
       "armv7l" = "armv7l";
     }
-    .${a} or a;
+    .${
+      a
+    } or a;
 
-  osToUname =
-    o:
+  osToUname = o:
     {
       "linux" = "Linux";
       "darwin" = "Darwin";
       "windows" = "Windows";
     }
-    .${o} or o;
+    .${
+      o
+    } or o;
 
-  flattenMatrix =
-    matrix:
+  flattenMatrix = matrix:
     lib.concatMap (
-      targetKey:
-      let
+      targetKey: let
         entry = matrix.${targetKey};
         parts = lib.splitString "-" targetKey;
         arch = builtins.head parts;
         os = lib.concatStringsSep "-" (builtins.tail parts);
       in
-      map (format: {
-        inherit
-          targetKey
-          arch
-          os
-          format
-          ;
-        drv = entry.drv;
-      }) entry.formats
+        map (format: {
+          inherit
+            targetKey
+            arch
+            os
+            format
+            ;
+          drv = entry.drv;
+        })
+        entry.formats
     ) (builtins.attrNames matrix);
 
-  buildBundle =
-    bundlerBundle: info:
-    {
-      drv,
-      arch,
-      os,
-      format,
-      ...
-    }:
+  buildBundle = bundlerBundle: info: {
+    drv,
+    arch,
+    os,
+    format,
+    ...
+  }:
     bundlerBundle {
       inherit drv format info;
-      target = { inherit arch os; };
+      target = {inherit arch os;};
     };
 
   # Sort entries deterministically so generated scripts hash stably.
   sortEntries = lib.sort (a: b: "${a.arch}:${a.os}:${a.format}" < "${b.arch}:${b.os}:${b.format}");
 
-  mkBashCases =
-    entries:
+  mkBashCases = entries:
     lib.concatMapStringsSep "\n          " (
       e: ''"${archToUname e.arch}:${osToUname e.os}:${e.format}") echo "${e.outFile}"; return ;;''
-    ) entries;
+    )
+    entries;
 
-  mkPwshCases =
-    entries:
+  mkPwshCases = entries:
     lib.concatMapStringsSep "\n            " (
       e: ''"${archToUname e.arch}:${osToUname e.os}:${e.format}" { return "${e.outFile}" }''
-    ) entries;
+    )
+    entries;
 
-  mkListing =
-    entries:
+  mkListing = entries:
     lib.concatMapStringsSep "\n" (
       e: "  ${archToUname e.arch} ${osToUname e.os} ${e.format} -> ${e.outFile}"
-    ) entries;
+    )
+    entries;
 
-  expandUrl = url: version: builtins.replaceStrings [ "\${VERSION}" ] [ version ] url;
+  expandUrl = url: version: builtins.replaceStrings ["\${VERSION}"] [version] url;
 
-  mkInstallMd =
-    {
-      name,
-      version,
-      releaseUrl,
-      entries,
-    }:
-    let
-      url = expandUrl releaseUrl version;
-      hasLinux = lib.any (e: e.os == "linux") entries;
-      hasDarwin = lib.any (e: e.os == "darwin") entries;
-      hasWindows = lib.any (e: e.os == "windows") entries;
-      shBlock = lib.optionalString (hasLinux || hasDarwin) ''
-        ### Linux / macOS
+  mkInstallMd = {
+    name,
+    version,
+    releaseUrl,
+    entries,
+  }: let
+    url = expandUrl releaseUrl version;
+    hasLinux = lib.any (e: e.os == "linux") entries;
+    hasDarwin = lib.any (e: e.os == "darwin") entries;
+    hasWindows = lib.any (e: e.os == "windows") entries;
+    shBlock = lib.optionalString (hasLinux || hasDarwin) ''
+      ### Linux / macOS
 
-        ```sh
-        curl -fsSL ${url}/install.sh | sh
-        ```
+      ```sh
+      curl -fsSL ${url}/install.sh | sh
+      ```
 
-      '';
-      psBlock = lib.optionalString hasWindows ''
-        ### Windows (PowerShell)
-
-        ```powershell
-        iwr ${url}/install.ps1 -OutFile install.ps1; .\install.ps1
-        ```
-
-      '';
-      tableRow =
-        e:
-        "| ${archToUname e.arch} | ${osToUname e.os} | `${e.format}` | [`${e.outFile}`](${url}/${e.outFile}) |";
-      table = lib.concatMapStringsSep "\n" tableRow entries;
-    in
-    ''
-      ## Install ${name} ${version}
-
-      ${shBlock}${psBlock}Options: `--format <fmt>`, `--version vX.Y.Z`, `--uninstall`, `--list`, `--help`.
-
-      The installer auto-detects your distro and picks the best matching package — `.deb`, `.rpm`, `.pkg.tar.zst`, `.msi`, or a tarball fallback.
-
-      ### Bundles in this release
-
-      | Arch | OS | Format | File |
-      |------|----|--------|------|
-      ${table}
-
-      All artifacts: <${url}/>
-
-      Verify downloads against [`SHA256SUMS`](${url}/SHA256SUMS).
     '';
+    psBlock = lib.optionalString hasWindows ''
+      ### Windows (PowerShell)
 
-  mkInstallSh =
-    {
-      name,
-      version,
-      releaseUrl,
-      entries,
-    }:
-    ''
-      #!/bin/sh
-      # Universal installer generated by nix-bundle-app.
-      # Picks the best configured format for the host. Use --format to override.
-      set -eu
+      ```powershell
+      iwr ${url}/install.ps1 -OutFile install.ps1; .\install.ps1
+      ```
 
-      NAME='${name}'
-      DEFAULT_VERSION='${version}'
-      DEFAULT_RELEASE_URL='${releaseUrl}'
+    '';
+    tableRow = e: "| ${archToUname e.arch} | ${osToUname e.os} | `${e.format}` | [`${e.outFile}`](${url}/${e.outFile}) |";
+    table = lib.concatMapStringsSep "\n" tableRow entries;
+  in ''
+    ## Install ${name} ${version}
 
-      VERSION=''${VERSION:-$DEFAULT_VERSION}
-      RELEASE_URL=''${RELEASE_URL:-$DEFAULT_RELEASE_URL}
-      INSTALL_DIR=''${INSTALL_DIR:-"$HOME/.local/bin"}
-      FORMAT=''${FORMAT:-}
-      UNINSTALL=0
+    ${shBlock}${psBlock}Options: `--format <fmt>`, `--version vX.Y.Z`, `--uninstall`, `--list`, `--help`.
 
-      usage() {
-        cat <<EOF
-      $NAME installer.
+    The installer auto-detects your distro and picks the best matching package — `.deb`, `.rpm`, `.pkg.tar.zst`, `.msi`, or a tarball fallback.
 
-      Usage: install.sh [options]
-        --version vX.Y.Z   pin a specific release
-        --format FMT       force a configured format
-        --dir DIR          install dir for tarball/zip/appimage (default: \$HOME/.local/bin)
-        --uninstall        remove the package / binary
-        --list             list configured (arch, os, format) entries
-        -h, --help         this help
+    ### Bundles in this release
 
-      Env vars: VERSION, RELEASE_URL, INSTALL_DIR, FORMAT, SUDO.
-      EOF
-      }
+    | Arch | OS | Format | File |
+    |------|----|--------|------|
+    ${table}
 
-      list_entries() {
-        cat <<EOF
-      Configured bundles:
-      ${mkListing entries}
-      EOF
-      }
+    All artifacts: <${url}/>
 
-      while [ "$#" -gt 0 ]; do
-        case "$1" in
-          --version)   VERSION="''${2#v}"; shift 2 ;;
-          --format)    FORMAT="$2"; shift 2 ;;
-          --dir)       INSTALL_DIR="$2"; shift 2 ;;
-          --uninstall) UNINSTALL=1; shift ;;
-          --list)      list_entries; exit 0 ;;
-          -h|--help)   usage; exit 0 ;;
-          *)           echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
+    Verify downloads against [`SHA256SUMS`](${url}/SHA256SUMS).
+  '';
+
+  mkInstallSh = {
+    name,
+    version,
+    releaseUrl,
+    entries,
+  }: ''
+    #!/bin/sh
+    # Universal installer generated by nix-bundle-app.
+    # Picks the best configured format for the host. Use --format to override.
+    set -eu
+
+    NAME='${name}'
+    DEFAULT_VERSION='${version}'
+    DEFAULT_RELEASE_URL='${releaseUrl}'
+
+    VERSION=''${VERSION:-$DEFAULT_VERSION}
+    RELEASE_URL=''${RELEASE_URL:-$DEFAULT_RELEASE_URL}
+    INSTALL_DIR=''${INSTALL_DIR:-"$HOME/.local/bin"}
+    FORMAT=''${FORMAT:-}
+    UNINSTALL=0
+
+    usage() {
+      cat <<EOF
+    $NAME installer.
+
+    Usage: install.sh [options]
+      --version vX.Y.Z   pin a specific release
+      --format FMT       force a configured format
+      --dir DIR          install dir for tarball/zip/appimage (default: \$HOME/.local/bin)
+      --uninstall        remove the package / binary
+      --list             list configured (arch, os, format) entries
+      -h, --help         this help
+
+    Env vars: VERSION, RELEASE_URL, INSTALL_DIR, FORMAT, SUDO.
+    EOF
+    }
+
+    list_entries() {
+      cat <<EOF
+    Configured bundles:
+    ${mkListing entries}
+    EOF
+    }
+
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        --version)   VERSION="''${2#v}"; shift 2 ;;
+        --format)    FORMAT="$2"; shift 2 ;;
+        --dir)       INSTALL_DIR="$2"; shift 2 ;;
+        --uninstall) UNINSTALL=1; shift ;;
+        --list)      list_entries; exit 0 ;;
+        -h|--help)   usage; exit 0 ;;
+        *)           echo "unknown arg: $1" >&2; usage >&2; exit 1 ;;
+      esac
+    done
+
+    RELEASE_URL=$(printf '%s' "$RELEASE_URL" | sed "s|\''${VERSION}|$VERSION|g")
+
+    OS=$(uname -s)
+    ARCH=$(uname -m)
+    case "$ARCH" in amd64) ARCH=x86_64 ;; arm64) ARCH=aarch64 ;; esac
+
+    SUDO=''${SUDO:-}
+    if [ -z "$SUDO" ] && [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
+      SUDO=sudo
+    fi
+
+    file_for() {
+      case "$1" in
+        ${mkBashCases entries}
+        *) return 1 ;;
+      esac
+    }
+
+    has_format() {
+      file_for "$ARCH:$OS:$1" >/dev/null 2>&1
+    }
+
+    detect_distro_format() {
+      [ "$OS" = "Linux" ] || return 1
+      if [ -r /etc/os-release ]; then
+        . /etc/os-release
+        family=" ''${ID:-} ''${ID_LIKE:-} "
+        case "$family" in
+          *" debian "*|*" ubuntu "*) echo deb; return ;;
+          *" fedora "*|*" rhel "*|*" centos "*|*" suse "*|*" opensuse-tumbleweed "*|*" opensuse-leap "*)
+            echo rpm; return ;;
+          *" arch "*|*" manjaro "*|*" endeavouros "*) echo archlinux; return ;;
         esac
-      done
-
-      RELEASE_URL=$(printf '%s' "$RELEASE_URL" | sed "s|\''${VERSION}|$VERSION|g")
-
-      OS=$(uname -s)
-      ARCH=$(uname -m)
-      case "$ARCH" in amd64) ARCH=x86_64 ;; arm64) ARCH=aarch64 ;; esac
-
-      SUDO=''${SUDO:-}
-      if [ -z "$SUDO" ] && [ "$(id -u)" -ne 0 ] && command -v sudo >/dev/null 2>&1; then
-        SUDO=sudo
       fi
+      if   command -v dpkg   >/dev/null 2>&1; then echo deb
+      elif command -v rpm    >/dev/null 2>&1; then echo rpm
+      elif command -v pacman >/dev/null 2>&1; then echo archlinux
+      else return 1
+      fi
+    }
 
-      file_for() {
-        case "$1" in
-          ${mkBashCases entries}
-          *) return 1 ;;
-        esac
-      }
-
-      has_format() {
-        file_for "$ARCH:$OS:$1" >/dev/null 2>&1
-      }
-
-      detect_distro_format() {
-        [ "$OS" = "Linux" ] || return 1
-        if [ -r /etc/os-release ]; then
-          . /etc/os-release
-          family=" ''${ID:-} ''${ID_LIKE:-} "
-          case "$family" in
-            *" debian "*|*" ubuntu "*) echo deb; return ;;
-            *" fedora "*|*" rhel "*|*" centos "*|*" suse "*|*" opensuse-tumbleweed "*|*" opensuse-leap "*)
-              echo rpm; return ;;
-            *" arch "*|*" manjaro "*|*" endeavouros "*) echo archlinux; return ;;
-          esac
-        fi
-        if   command -v dpkg   >/dev/null 2>&1; then echo deb
-        elif command -v rpm    >/dev/null 2>&1; then echo rpm
-        elif command -v pacman >/dev/null 2>&1; then echo archlinux
-        else return 1
-        fi
-      }
-
-      pick_format() {
-        if [ -n "$FORMAT" ]; then
-          if has_format "$FORMAT"; then echo "$FORMAT"; return; fi
-          echo "format '$FORMAT' is not configured for $ARCH on $OS" >&2
-          return 1
-        fi
-        case "$OS" in
-          Linux)
-            distro=$(detect_distro_format 2>/dev/null || true)
-            for f in $distro tar.gz tar.xz tar.zst appimage zip deb rpm archlinux; do
-              [ -z "$f" ] && continue
-              if has_format "$f"; then echo "$f"; return; fi
-            done
-            ;;
-          Darwin)
-            for f in pkg dmg tar.gz tar.xz tar.zst zip app; do
-              if has_format "$f"; then echo "$f"; return; fi
-            done
-            ;;
-          MINGW*|MSYS*|CYGWIN*|Windows*)
-            for f in msi zip; do
-              if has_format "$f"; then echo "$f"; return; fi
-            done
-            ;;
-        esac
+    pick_format() {
+      if [ -n "$FORMAT" ]; then
+        if has_format "$FORMAT"; then echo "$FORMAT"; return; fi
+        echo "format '$FORMAT' is not configured for $ARCH on $OS" >&2
         return 1
-      }
-
-      verify_sha256() {
-        src=$1; file=$2
-        if command -v curl >/dev/null 2>&1; then
-          curl -fsSL "$RELEASE_URL/SHA256SUMS" -o "$tmp/sums" 2>/dev/null || true
-        elif command -v wget >/dev/null 2>&1; then
-          wget -qO "$tmp/sums" "$RELEASE_URL/SHA256SUMS" 2>/dev/null || true
-        fi
-        if [ -s "$tmp/sums" ] && command -v sha256sum >/dev/null 2>&1; then
-          expected=$(awk -v f="$file" '$2==f {print $1; exit}' "$tmp/sums")
-          if [ -n "$expected" ]; then
-            actual=$(sha256sum "$src" | awk '{print $1}')
-            if [ "$expected" != "$actual" ]; then
-              echo "SHA256 mismatch for $file (expected $expected, got $actual)" >&2
-              exit 1
-            fi
-            echo "SHA256 verified."
-          fi
-        fi
-      }
-
-      do_uninstall() {
-        case "$1" in
-          deb)        $SUDO dpkg -r "$NAME" 2>/dev/null || true ;;
-          rpm)        $SUDO rpm  -e "$NAME" 2>/dev/null || true ;;
-          archlinux)  $SUDO pacman -R --noconfirm "$NAME" 2>/dev/null || true ;;
-          pkg|dmg|app)
-            $SUDO rm -rf "/Applications/$NAME.app" "/opt/$NAME" 2>/dev/null || true ;;
-          appimage)
-            rm -f "$INSTALL_DIR/$NAME.AppImage" "$INSTALL_DIR/$NAME" ;;
-          *)          rm -f "$INSTALL_DIR/$NAME" ;;
-        esac
-      }
-
-      do_install() {
-        fmt=$1; src=$2
-        case "$fmt" in
-          deb)
-            if command -v apt-get >/dev/null 2>&1; then
-              $SUDO apt-get install -y "$src"
-            else
-              $SUDO dpkg -i "$src"
-            fi
-            ;;
-          rpm)
-            if   command -v dnf    >/dev/null 2>&1; then $SUDO dnf install -y "$src"
-            elif command -v yum    >/dev/null 2>&1; then $SUDO yum install -y "$src"
-            elif command -v zypper >/dev/null 2>&1; then
-              $SUDO zypper --non-interactive install --allow-unsigned-rpm "$src"
-            else                                          $SUDO rpm -ivh "$src"
-            fi
-            ;;
-          archlinux)
-            $SUDO pacman -U --noconfirm "$src"
-            ;;
-          appimage)
-            mkdir -p "$INSTALL_DIR"
-            install -m 0755 "$src" "$INSTALL_DIR/$NAME.AppImage"
-            ln -sf "$INSTALL_DIR/$NAME.AppImage" "$INSTALL_DIR/$NAME"
-            ;;
-          tar.gz|tar.xz|tar.zst)
-            ex=$(mktemp -d)
-            tar -xf "$src" -C "$ex"
-            bin=$(find "$ex" -type f -name "$NAME" -perm -100 | head -n1)
-            [ -n "$bin" ] || bin=$(find "$ex" -type f -name "$NAME" | head -n1)
-            if [ -z "$bin" ]; then
-              echo "binary '$NAME' missing inside tarball" >&2
-              rm -rf "$ex"; return 1
-            fi
-            mkdir -p "$INSTALL_DIR"
-            install -m 0755 "$bin" "$INSTALL_DIR/$NAME"
-            rm -rf "$ex"
-            ;;
-          zip)
-            ex=$(mktemp -d)
-            if command -v unzip >/dev/null 2>&1; then
-              unzip -q "$src" -d "$ex"
-            elif command -v bsdtar >/dev/null 2>&1; then
-              bsdtar -xf "$src" -C "$ex"
-            else
-              echo "need unzip or bsdtar to extract zip" >&2
-              rm -rf "$ex"; return 1
-            fi
-            bin=$(find "$ex" -type f \( -name "$NAME" -o -name "$NAME.exe" \) | head -n1)
-            if [ -z "$bin" ]; then
-              echo "binary '$NAME' missing inside zip" >&2
-              rm -rf "$ex"; return 1
-            fi
-            mkdir -p "$INSTALL_DIR"
-            install -m 0755 "$bin" "$INSTALL_DIR/$(basename "$bin")"
-            rm -rf "$ex"
-            ;;
-          pkg)
-            [ "$OS" = "Darwin" ] || { echo "pkg format requires macOS" >&2; return 1; }
-            $SUDO installer -pkg "$src" -target /
-            ;;
-          dmg)
-            [ "$OS" = "Darwin" ] || { echo "dmg format requires macOS" >&2; return 1; }
-            mount=$(hdiutil attach -nobrowse -readonly "$src" | tail -n1 | awk '{print $NF}')
-            $SUDO cp -R "$mount"/*.app /Applications/
-            hdiutil detach "$mount" -quiet
-            ;;
-          app)
-            [ "$OS" = "Darwin" ] || { echo "app format requires macOS" >&2; return 1; }
-            ex=$(mktemp -d)
-            tar -xf "$src" -C "$ex" 2>/dev/null || unzip -q "$src" -d "$ex"
-            app=$(find "$ex" -maxdepth 3 -type d -name "*.app" | head -n1)
-            if [ -z "$app" ]; then
-              echo "no .app bundle found inside" >&2
-              rm -rf "$ex"; return 1
-            fi
-            $SUDO cp -R "$app" /Applications/
-            rm -rf "$ex"
-            ;;
-          *)
-            echo "unsupported format: $fmt" >&2; return 1
-            ;;
-        esac
-      }
-
-      if [ "$UNINSTALL" = "1" ]; then
-        fmt=$FORMAT
-        [ -n "$fmt" ] || fmt=$(pick_format 2>/dev/null || echo "")
-        do_uninstall "$fmt"
-        echo "$NAME removed (format=$fmt)."
-        exit 0
       fi
-
-      FORMAT_PICKED=$(pick_format) || { echo "no configured bundle for $ARCH on $OS" >&2; exit 1; }
-      FILE=$(file_for "$ARCH:$OS:$FORMAT_PICKED")
-
-      tmp=$(mktemp -d)
-      trap 'rm -rf "$tmp"' EXIT
-
-      URL="$RELEASE_URL/$FILE"
-      echo "Downloading $URL"
-
-      if command -v curl >/dev/null 2>&1; then
-        curl -fsSL "$URL" -o "$tmp/bundle"
-      elif command -v wget >/dev/null 2>&1; then
-        wget -qO "$tmp/bundle" "$URL"
-      else
-        echo "need curl or wget on PATH" >&2; exit 1
-      fi
-
-      verify_sha256 "$tmp/bundle" "$FILE"
-
-      do_install "$FORMAT_PICKED" "$tmp/bundle"
-
-      case "$FORMAT_PICKED" in
-        tar.gz|tar.xz|tar.zst|zip|appimage)
-          case ":$PATH:" in
-            *":$INSTALL_DIR:"*) ;;
-            *) echo "note: $INSTALL_DIR is not on \$PATH" ;;
-          esac
+      case "$OS" in
+        Linux)
+          distro=$(detect_distro_format 2>/dev/null || true)
+          for f in $distro tar.gz tar.xz tar.zst appimage zip deb rpm archlinux; do
+            [ -z "$f" ] && continue
+            if has_format "$f"; then echo "$f"; return; fi
+          done
+          ;;
+        Darwin)
+          for f in pkg dmg tar.gz tar.xz tar.zst zip app; do
+            if has_format "$f"; then echo "$f"; return; fi
+          done
+          ;;
+        MINGW*|MSYS*|CYGWIN*|Windows*)
+          for f in msi zip; do
+            if has_format "$f"; then echo "$f"; return; fi
+          done
           ;;
       esac
+      return 1
+    }
 
-      echo "Installed $NAME $VERSION ($FORMAT_PICKED)."
-    '';
+    verify_sha256() {
+      src=$1; file=$2
+      if command -v curl >/dev/null 2>&1; then
+        curl -fsSL "$RELEASE_URL/SHA256SUMS" -o "$tmp/sums" 2>/dev/null || true
+      elif command -v wget >/dev/null 2>&1; then
+        wget -qO "$tmp/sums" "$RELEASE_URL/SHA256SUMS" 2>/dev/null || true
+      fi
+      if [ -s "$tmp/sums" ] && command -v sha256sum >/dev/null 2>&1; then
+        expected=$(awk -v f="$file" '$2==f {print $1; exit}' "$tmp/sums")
+        if [ -n "$expected" ]; then
+          actual=$(sha256sum "$src" | awk '{print $1}')
+          if [ "$expected" != "$actual" ]; then
+            echo "SHA256 mismatch for $file (expected $expected, got $actual)" >&2
+            exit 1
+          fi
+          echo "SHA256 verified."
+        fi
+      fi
+    }
 
-  mkInstallPs1 =
-    {
-      name,
-      version,
-      releaseUrl,
-      entries,
-    }:
-    ''
-      #!/usr/bin/env pwsh
-      # Universal Windows installer generated by nix-bundle-app.
-      # MSI by default (system-wide via msiexec); pass -Format zip for a
-      # portable .exe drop in $env:LOCALAPPDATA\Programs.
-      [CmdletBinding()]
-      param(
-        [string]$Version = '${version}',
-        [string]$ReleaseUrl = $null,
-        [string]$Dir     = $null,
-        [string]$Format  = $null,
-        [switch]$Uninstall,
-        [switch]$List
-      )
+    do_uninstall() {
+      case "$1" in
+        deb)        $SUDO dpkg -r "$NAME" 2>/dev/null || true ;;
+        rpm)        $SUDO rpm  -e "$NAME" 2>/dev/null || true ;;
+        archlinux)  $SUDO pacman -R --noconfirm "$NAME" 2>/dev/null || true ;;
+        pkg|dmg|app)
+          $SUDO rm -rf "/Applications/$NAME.app" "/opt/$NAME" 2>/dev/null || true ;;
+        appimage)
+          rm -f "$INSTALL_DIR/$NAME.AppImage" "$INSTALL_DIR/$NAME" ;;
+        *)          rm -f "$INSTALL_DIR/$NAME" ;;
+      esac
+    }
 
-      $ErrorActionPreference = 'Stop'
-      $Name = '${name}'
+    do_install() {
+      fmt=$1; src=$2
+      case "$fmt" in
+        deb)
+          if command -v apt-get >/dev/null 2>&1; then
+            $SUDO apt-get install -y "$src"
+          else
+            $SUDO dpkg -i "$src"
+          fi
+          ;;
+        rpm)
+          if   command -v dnf    >/dev/null 2>&1; then $SUDO dnf install -y "$src"
+          elif command -v yum    >/dev/null 2>&1; then $SUDO yum install -y "$src"
+          elif command -v zypper >/dev/null 2>&1; then
+            $SUDO zypper --non-interactive install --allow-unsigned-rpm "$src"
+          else                                          $SUDO rpm -ivh "$src"
+          fi
+          ;;
+        archlinux)
+          $SUDO pacman -U --noconfirm "$src"
+          ;;
+        appimage)
+          mkdir -p "$INSTALL_DIR"
+          install -m 0755 "$src" "$INSTALL_DIR/$NAME.AppImage"
+          ln -sf "$INSTALL_DIR/$NAME.AppImage" "$INSTALL_DIR/$NAME"
+          ;;
+        tar.gz|tar.xz|tar.zst)
+          ex=$(mktemp -d)
+          tar -xf "$src" -C "$ex"
+          bin=$(find "$ex" -type f -name "$NAME" -perm -100 | head -n1)
+          [ -n "$bin" ] || bin=$(find "$ex" -type f -name "$NAME" | head -n1)
+          if [ -z "$bin" ]; then
+            echo "binary '$NAME' missing inside tarball" >&2
+            rm -rf "$ex"; return 1
+          fi
+          mkdir -p "$INSTALL_DIR"
+          install -m 0755 "$bin" "$INSTALL_DIR/$NAME"
+          rm -rf "$ex"
+          ;;
+        zip)
+          ex=$(mktemp -d)
+          if command -v unzip >/dev/null 2>&1; then
+            unzip -q "$src" -d "$ex"
+          elif command -v bsdtar >/dev/null 2>&1; then
+            bsdtar -xf "$src" -C "$ex"
+          else
+            echo "need unzip or bsdtar to extract zip" >&2
+            rm -rf "$ex"; return 1
+          fi
+          bin=$(find "$ex" -type f \( -name "$NAME" -o -name "$NAME.exe" \) | head -n1)
+          if [ -z "$bin" ]; then
+            echo "binary '$NAME' missing inside zip" >&2
+            rm -rf "$ex"; return 1
+          fi
+          mkdir -p "$INSTALL_DIR"
+          install -m 0755 "$bin" "$INSTALL_DIR/$(basename "$bin")"
+          rm -rf "$ex"
+          ;;
+        pkg)
+          [ "$OS" = "Darwin" ] || { echo "pkg format requires macOS" >&2; return 1; }
+          $SUDO installer -pkg "$src" -target /
+          ;;
+        dmg)
+          [ "$OS" = "Darwin" ] || { echo "dmg format requires macOS" >&2; return 1; }
+          mount=$(hdiutil attach -nobrowse -readonly "$src" | tail -n1 | awk '{print $NF}')
+          $SUDO cp -R "$mount"/*.app /Applications/
+          hdiutil detach "$mount" -quiet
+          ;;
+        app)
+          [ "$OS" = "Darwin" ] || { echo "app format requires macOS" >&2; return 1; }
+          ex=$(mktemp -d)
+          tar -xf "$src" -C "$ex" 2>/dev/null || unzip -q "$src" -d "$ex"
+          app=$(find "$ex" -maxdepth 3 -type d -name "*.app" | head -n1)
+          if [ -z "$app" ]; then
+            echo "no .app bundle found inside" >&2
+            rm -rf "$ex"; return 1
+          fi
+          $SUDO cp -R "$app" /Applications/
+          rm -rf "$ex"
+          ;;
+        *)
+          echo "unsupported format: $fmt" >&2; return 1
+          ;;
+      esac
+    }
 
-      if (-not $ReleaseUrl) {
-        $ReleaseUrl = '${releaseUrl}'.Replace('$' + '{VERSION}', $Version)
+    if [ "$UNINSTALL" = "1" ]; then
+      fmt=$FORMAT
+      [ -n "$fmt" ] || fmt=$(pick_format 2>/dev/null || echo "")
+      do_uninstall "$fmt"
+      echo "$NAME removed (format=$fmt)."
+      exit 0
+    fi
+
+    FORMAT_PICKED=$(pick_format) || { echo "no configured bundle for $ARCH on $OS" >&2; exit 1; }
+    FILE=$(file_for "$ARCH:$OS:$FORMAT_PICKED")
+
+    tmp=$(mktemp -d)
+    trap 'rm -rf "$tmp"' EXIT
+
+    URL="$RELEASE_URL/$FILE"
+    echo "Downloading $URL"
+
+    if command -v curl >/dev/null 2>&1; then
+      curl -fsSL "$URL" -o "$tmp/bundle"
+    elif command -v wget >/dev/null 2>&1; then
+      wget -qO "$tmp/bundle" "$URL"
+    else
+      echo "need curl or wget on PATH" >&2; exit 1
+    fi
+
+    verify_sha256 "$tmp/bundle" "$FILE"
+
+    do_install "$FORMAT_PICKED" "$tmp/bundle"
+
+    case "$FORMAT_PICKED" in
+      tar.gz|tar.xz|tar.zst|zip|appimage)
+        case ":$PATH:" in
+          *":$INSTALL_DIR:"*) ;;
+          *) echo "note: $INSTALL_DIR is not on \$PATH" ;;
+        esac
+        ;;
+    esac
+
+    echo "Installed $NAME $VERSION ($FORMAT_PICKED)."
+  '';
+
+  mkInstallPs1 = {
+    name,
+    version,
+    releaseUrl,
+    entries,
+  }: ''
+    #!/usr/bin/env pwsh
+    # Universal Windows installer generated by nix-bundle-app.
+    # MSI by default (system-wide via msiexec); pass -Format zip for a
+    # portable .exe drop in $env:LOCALAPPDATA\Programs.
+    [CmdletBinding()]
+    param(
+      [string]$Version = '${version}',
+      [string]$ReleaseUrl = $null,
+      [string]$Dir     = $null,
+      [string]$Format  = $null,
+      [switch]$Uninstall,
+      [switch]$List
+    )
+
+    $ErrorActionPreference = 'Stop'
+    $Name = '${name}'
+
+    if (-not $ReleaseUrl) {
+      $ReleaseUrl = '${releaseUrl}'.Replace('$' + '{VERSION}', $Version)
+    }
+    if (-not $Dir) {
+      $Dir = Join-Path $env:LOCALAPPDATA "Programs\$Name"
+    }
+
+    $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'aarch64' } else { 'x86_64' }
+
+    function Resolve-File {
+      param([string]$Key)
+      switch ($Key) {
+          ${mkPwshCases entries}
+        default { return $null }
       }
-      if (-not $Dir) {
-        $Dir = Join-Path $env:LOCALAPPDATA "Programs\$Name"
+    }
+
+    function Has-Format {
+      param([string]$F)
+      return $null -ne (Resolve-File "$Arch`:Windows`:$F")
+    }
+
+    function Pick-Format {
+      if ($Format) {
+        if (Has-Format $Format) { return $Format }
+        throw "format '$Format' is not configured for $Arch on Windows"
       }
+      foreach ($f in @('msi','zip')) {
+        if (Has-Format $f) { return $f }
+      }
+      throw "no configured bundle for $Arch on Windows"
+    }
 
-      $Arch = if ($env:PROCESSOR_ARCHITECTURE -eq 'ARM64') { 'aarch64' } else { 'x86_64' }
+    if ($List) {
+      Write-Host "Configured bundles:"
+      Write-Host @'
+    ${mkListing entries}
+    '@
+      exit 0
+    }
 
-      function Resolve-File {
-        param([string]$Key)
-        switch ($Key) {
-            ${mkPwshCases entries}
-          default { return $null }
+    if ($Uninstall) {
+      $product = Get-CimInstance Win32_Product -Filter "Name LIKE '%$Name%'" -ErrorAction SilentlyContinue
+      if ($product) {
+        Start-Process msiexec.exe -ArgumentList "/x $($product.IdentifyingNumber) /quiet /qn /norestart" -Wait -Verb RunAs
+        Write-Host "Uninstalled $Name via MSI."
+      }
+      $exe = Join-Path $Dir "$Name.exe"
+      if (Test-Path $exe) {
+        Remove-Item $exe -Force
+        Write-Host "Removed $exe"
+      }
+      exit 0
+    }
+
+    $Picked = Pick-Format
+    $File   = Resolve-File "$Arch`:Windows`:$Picked"
+    $Tmp    = New-Item -ItemType Directory -Path (Join-Path $env:TEMP "$Name-$(Get-Random)")
+    $Bundle = Join-Path $Tmp.FullName $File
+    $Url    = "$ReleaseUrl/$File"
+    Write-Host "Downloading $Url"
+    Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Bundle
+
+    try {
+      $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseUrl/SHA256SUMS").Content
+      $esc  = [regex]::Escape($File)
+      $line = ($sums -split "`n") | Where-Object { $_ -match "\s$esc\s*$" } | Select-Object -First 1
+      if ($line) {
+        $expected = ($line -split '\s+')[0].ToLower()
+        $actual   = (Get-FileHash -Algorithm SHA256 $Bundle).Hash.ToLower()
+        if ($expected -ne $actual) {
+          throw "SHA256 mismatch for $File (expected $expected, got $actual)"
+        }
+        Write-Host "SHA256 verified."
+      }
+    } catch {
+      Write-Host "Skipping SHA256 verification ($($_.Exception.Message))."
+    }
+
+    switch ($Picked) {
+      'msi' {
+        Write-Host "Running msiexec (UAC prompt may appear)..."
+        Start-Process msiexec.exe -ArgumentList "/i `"$Bundle`" /quiet /qn /norestart" -Wait -Verb RunAs
+        Write-Host "Installed $Name $Version via MSI."
+      }
+      'zip' {
+        New-Item -ItemType Directory -Path $Dir -Force | Out-Null
+        $extract = Join-Path $Tmp.FullName 'extract'
+        Expand-Archive -Path $Bundle -DestinationPath $extract -Force
+        $exe = Get-ChildItem -Path $extract -Recurse -File -Filter "$Name.exe" | Select-Object -First 1
+        if (-not $exe) { throw "$Name.exe not found inside zip" }
+        Copy-Item $exe.FullName -Destination (Join-Path $Dir "$Name.exe") -Force
+        Write-Host "Installed $Name $Version -> $Dir\$Name.exe"
+        $userPath = [Environment]::GetEnvironmentVariable('Path','User')
+        if ($userPath -notlike "*$Dir*") {
+          Write-Host "Note: $Dir is not on PATH. Add it via: setx PATH `"$userPath;$Dir`""
         }
       }
+      default { throw "unsupported format: $Picked" }
+    }
 
-      function Has-Format {
-        param([string]$F)
-        return $null -ne (Resolve-File "$Arch`:Windows`:$F")
-      }
+    Remove-Item -Recurse -Force $Tmp.FullName
+  '';
 
-      function Pick-Format {
-        if ($Format) {
-          if (Has-Format $Format) { return $Format }
-          throw "format '$Format' is not configured for $Arch on Windows"
-        }
-        foreach ($f in @('msi','zip')) {
-          if (Has-Format $f) { return $f }
-        }
-        throw "no configured bundle for $Arch on Windows"
-      }
+  release = bundlerBundle: {
+    info ? {},
+    releaseUrl,
+    matrix,
+    installScripts ? true,
+  }: let
+    entries = flattenMatrix matrix;
 
-      if ($List) {
-        Write-Host "Configured bundles:"
-        Write-Host @'
-      ${mkListing entries}
-      '@
-        exit 0
-      }
-
-      if ($Uninstall) {
-        $product = Get-CimInstance Win32_Product -Filter "Name LIKE '%$Name%'" -ErrorAction SilentlyContinue
-        if ($product) {
-          Start-Process msiexec.exe -ArgumentList "/x $($product.IdentifyingNumber) /quiet /qn /norestart" -Wait -Verb RunAs
-          Write-Host "Uninstalled $Name via MSI."
-        }
-        $exe = Join-Path $Dir "$Name.exe"
-        if (Test-Path $exe) {
-          Remove-Item $exe -Force
-          Write-Host "Removed $exe"
-        }
-        exit 0
-      }
-
-      $Picked = Pick-Format
-      $File   = Resolve-File "$Arch`:Windows`:$Picked"
-      $Tmp    = New-Item -ItemType Directory -Path (Join-Path $env:TEMP "$Name-$(Get-Random)")
-      $Bundle = Join-Path $Tmp.FullName $File
-      $Url    = "$ReleaseUrl/$File"
-      Write-Host "Downloading $Url"
-      Invoke-WebRequest -UseBasicParsing -Uri $Url -OutFile $Bundle
-
-      try {
-        $sums = (Invoke-WebRequest -UseBasicParsing -Uri "$ReleaseUrl/SHA256SUMS").Content
-        $esc  = [regex]::Escape($File)
-        $line = ($sums -split "`n") | Where-Object { $_ -match "\s$esc\s*$" } | Select-Object -First 1
-        if ($line) {
-          $expected = ($line -split '\s+')[0].ToLower()
-          $actual   = (Get-FileHash -Algorithm SHA256 $Bundle).Hash.ToLower()
-          if ($expected -ne $actual) {
-            throw "SHA256 mismatch for $File (expected $expected, got $actual)"
-          }
-          Write-Host "SHA256 verified."
-        }
-      } catch {
-        Write-Host "Skipping SHA256 verification ($($_.Exception.Message))."
-      }
-
-      switch ($Picked) {
-        'msi' {
-          Write-Host "Running msiexec (UAC prompt may appear)..."
-          Start-Process msiexec.exe -ArgumentList "/i `"$Bundle`" /quiet /qn /norestart" -Wait -Verb RunAs
-          Write-Host "Installed $Name $Version via MSI."
-        }
-        'zip' {
-          New-Item -ItemType Directory -Path $Dir -Force | Out-Null
-          $extract = Join-Path $Tmp.FullName 'extract'
-          Expand-Archive -Path $Bundle -DestinationPath $extract -Force
-          $exe = Get-ChildItem -Path $extract -Recurse -File -Filter "$Name.exe" | Select-Object -First 1
-          if (-not $exe) { throw "$Name.exe not found inside zip" }
-          Copy-Item $exe.FullName -Destination (Join-Path $Dir "$Name.exe") -Force
-          Write-Host "Installed $Name $Version -> $Dir\$Name.exe"
-          $userPath = [Environment]::GetEnvironmentVariable('Path','User')
-          if ($userPath -notlike "*$Dir*") {
-            Write-Host "Note: $Dir is not on PATH. Add it via: setx PATH `"$userPath;$Dir`""
-          }
-        }
-        default { throw "unsupported format: $Picked" }
-      }
-
-      Remove-Item -Recurse -Force $Tmp.FullName
-    '';
-
-  release =
-    bundlerBundle:
-    {
-      info ? { },
-      releaseUrl,
-      matrix,
-      installScripts ? true,
-    }:
-    let
-      entries = flattenMatrix matrix;
-
-      built = map (
-        e:
-        let
+    built =
+      map (
+        e: let
           bundle = buildBundle bundlerBundle info e;
-        in
-        {
-          inherit (e)
+        in {
+          inherit
+            (e)
             targetKey
             arch
             os
@@ -592,38 +580,41 @@ let
             bundle.passthru.outFile
               or (throw "Bundle ${e.targetKey}/${e.format} lacks passthru.outFile; can't include in release");
         }
-      ) entries;
+      )
+      entries;
 
-      sorted = sortEntries built;
+    sorted = sortEntries built;
 
-      headInfo = (lib.head built).drv.passthru.info;
-      scriptName = headInfo.name;
-      scriptVersion = headInfo.version;
+    headInfo = (lib.head built).drv.passthru.info;
+    scriptName = headInfo.name;
+    scriptVersion = headInfo.version;
 
-      installShText = mkInstallSh {
-        name = scriptName;
-        version = scriptVersion;
-        inherit releaseUrl;
-        entries = sorted;
-      };
-      installPs1Text = mkInstallPs1 {
-        name = scriptName;
-        version = scriptVersion;
-        inherit releaseUrl;
-        entries = sorted;
-      };
-      installMdText = mkInstallMd {
-        name = scriptName;
-        version = scriptVersion;
-        inherit releaseUrl;
-        entries = sorted;
-      };
+    installShText = mkInstallSh {
+      name = scriptName;
+      version = scriptVersion;
+      inherit releaseUrl;
+      entries = sorted;
+    };
+    installPs1Text = mkInstallPs1 {
+      name = scriptName;
+      version = scriptVersion;
+      inherit releaseUrl;
+      entries = sorted;
+    };
+    installMdText = mkInstallMd {
+      name = scriptName;
+      version = scriptVersion;
+      inherit releaseUrl;
+      entries = sorted;
+    };
 
-      cpLines = lib.concatMapStringsSep "\n" (b: ''
+    cpLines =
+      lib.concatMapStringsSep "\n" (b: ''
         mkdir -p "$(dirname "$out/${b.outFile}")"
         cp -L "${b.drv}/${b.outFile}" "$out/${b.outFile}"
         chmod u+w "$out/${b.outFile}"
-        ${lib.optionalString (b.format == "archlinux" && (b.drv.passthru.archlinuxMode or "pkg") == "both")
+        ${
+          lib.optionalString (b.format == "archlinux" && (b.drv.passthru.archlinuxMode or "pkg") == "both")
           ''
             # The `archlinux` format with `output = "both"` writes a
             # PKGBUILD + .SRCINFO + source tarball into `$out/aur/`
@@ -638,45 +629,43 @@ let
             fi
           ''
         }
-      '') sorted;
-    in
+      '')
+      sorted;
+  in
     pkgs.runCommand "${scriptName}-${scriptVersion}-release"
-      {
-        passthru = {
-          bundles = sorted;
-          info = headInfo;
-          inherit releaseUrl;
-        };
-      }
-      ''
-        mkdir -p $out
-        ${cpLines}
+    {
+      passthru = {
+        bundles = sorted;
+        info = headInfo;
+        inherit releaseUrl;
+      };
+    }
+    ''
+      mkdir -p $out
+      ${cpLines}
 
-        ${lib.optionalString installScripts ''
-          cp ${pkgs.writeText "install.sh" installShText} $out/install.sh
-          chmod +x $out/install.sh
-          cp ${pkgs.writeText "install.ps1" installPs1Text} $out/install.ps1
-        ''}
+      ${lib.optionalString installScripts ''
+        cp ${pkgs.writeText "install.sh" installShText} $out/install.sh
+        chmod +x $out/install.sh
+        cp ${pkgs.writeText "install.ps1" installPs1Text} $out/install.ps1
+      ''}
 
-        cp ${pkgs.writeText "INSTALL.md" installMdText} $out/INSTALL.md
+      cp ${pkgs.writeText "INSTALL.md" installMdText} $out/INSTALL.md
 
-        ( cd $out && ${pkgs.findutils}/bin/find . -type f ! -name SHA256SUMS -printf '%P\n' \
-            | LC_ALL=C sort \
-            | xargs ${pkgs.coreutils}/bin/sha256sum -- > SHA256SUMS )
-      '';
+      ( cd $out && ${pkgs.findutils}/bin/find . -type f ! -name SHA256SUMS -printf '%P\n' \
+          | LC_ALL=C sort \
+          | xargs ${pkgs.coreutils}/bin/sha256sum -- > SHA256SUMS )
+    '';
 
-  installScripts =
-    bundlerBundle: args:
-    let
-      r = release bundlerBundle (args // { installScripts = true; });
-    in
-    pkgs.runCommand "${r.passthru.info.name}-install-scripts" { } ''
+  installScripts = bundlerBundle: args: let
+    r = release bundlerBundle (args // {installScripts = true;});
+  in
+    pkgs.runCommand "${r.passthru.info.name}-install-scripts" {} ''
       mkdir -p $out
       cp ${r}/install.sh $out/install.sh
       cp ${r}/install.ps1 $out/install.ps1
       chmod +x $out/install.sh
     '';
-in
-{
+in {
   inherit release installScripts;
 }

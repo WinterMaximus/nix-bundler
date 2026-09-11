@@ -1,8 +1,12 @@
-{ pkgs, bundler }:
-
-let
+{
+  pkgs,
+  bundler,
+}: let
   helloLinux = pkgs.hello;
-  helloWindows = if pkgs.stdenv.isLinux then pkgs.pkgsCross.mingwW64.hello else pkgs.hello;
+  helloWindows =
+    if pkgs.stdenv.isLinux
+    then pkgs.pkgsCross.mingwW64.hello
+    else pkgs.hello;
 
   commonInfo = {
     description = "GNU Hello, the canonical example program";
@@ -16,60 +20,61 @@ let
     '';
   };
 
-  serviceInfo = commonInfo // {
-    desktopEntries = [
-      {
-        name = "Hello Demo";
-        exec = "/opt/hello/bin/hello %F";
-        comment = "Friendly greeter (demo of declarative bundle metadata)";
-        icon = "hello";
-        categories = [
-          "Utility"
-          "Education"
-        ];
-        keywords = [
-          "demo"
-          "greeting"
-          "hello"
-        ];
-        terminal = false;
-        actions = {
-          "Verbose" = {
-            name = "Run verbose";
-            exec = "/opt/hello/bin/hello --verbose";
+  serviceInfo =
+    commonInfo
+    // {
+      desktopEntries = [
+        {
+          name = "Hello Demo";
+          exec = "/opt/hello/bin/hello %F";
+          comment = "Friendly greeter (demo of declarative bundle metadata)";
+          icon = "hello";
+          categories = [
+            "Utility"
+            "Education"
+          ];
+          keywords = [
+            "demo"
+            "greeting"
+            "hello"
+          ];
+          terminal = false;
+          actions = {
+            "Verbose" = {
+              name = "Run verbose";
+              exec = "/opt/hello/bin/hello --verbose";
+            };
           };
-        };
-      }
-    ];
-    services = [
-      {
-        name = "hello-agent";
-        description = "Hello background greeter";
-        exec = "/opt/hello/bin/hello --daemon";
-        user = "hello";
-        environment = {
-          LOG_LEVEL = "info";
-          HELLO_INTERVAL = "60";
-        };
-        restart = "always";
-        restartSec = 10;
-        after = [ "network-online.target" ];
+        }
+      ];
+      services = [
+        {
+          name = "hello-agent";
+          description = "Hello background greeter";
+          exec = "/opt/hello/bin/hello --daemon";
+          user = "hello";
+          environment = {
+            LOG_LEVEL = "info";
+            HELLO_INTERVAL = "60";
+          };
+          restart = "always";
+          restartSec = 10;
+          after = ["network-online.target"];
 
-        windows = {
-          serviceName = "HelloAgent";
-          displayName = "Hello Greeter Agent";
-          start = "auto";
-        };
-        launchd = {
-          keepAlive = true;
-          runAtLoad = true;
-          processType = "Background";
-        };
-      }
-    ];
-  };
-in
-{
+          windows = {
+            serviceName = "HelloAgent";
+            displayName = "Hello Greeter Agent";
+            start = "auto";
+          };
+          launchd = {
+            keepAlive = true;
+            runAtLoad = true;
+            processType = "Background";
+          };
+        }
+      ];
+    };
+in {
   hello-deb = bundler.bundle {
     drv = helloLinux;
     format = "deb";
@@ -91,18 +96,22 @@ in
   hello-archlinux-pkg-only = bundler.bundle {
     drv = helloLinux;
     format = "archlinux";
-    info = commonInfo // {
-      archlinux.output = "pkg";
-    };
+    info =
+      commonInfo
+      // {
+        archlinux.output = "pkg";
+      };
   };
 
   hello-archlinux-aur-only = bundler.bundle {
     drv = helloLinux;
     format = "archlinux";
-    info = commonInfo // {
-      archlinux.output = "aur";
-      downloadUrl = "https://example.com/releases/hello-bin-2.12.3-x86_64.tar.gz";
-    };
+    info =
+      commonInfo
+      // {
+        archlinux.output = "aur";
+        downloadUrl = "https://example.com/releases/hello-bin-2.12.3-x86_64.tar.gz";
+      };
   };
 
   hello-tar-gz = bundler.bundle {
@@ -136,9 +145,11 @@ in
   hello-brew = bundler.bundle {
     drv = helloLinux;
     format = "brew";
-    info = commonInfo // {
-      downloadUrl = "https://example.com/releases/hello.tar.gz";
-    };
+    info =
+      commonInfo
+      // {
+        downloadUrl = "https://example.com/releases/hello.tar.gz";
+      };
     target = {
       arch = "x86_64";
       os = "darwin";
@@ -146,7 +157,8 @@ in
   };
 
   hello-dmg =
-    if pkgs.stdenv.isLinux || pkgs.stdenv.isDarwin then
+    if pkgs.stdenv.isLinux || pkgs.stdenv.isDarwin
+    then
       bundler.bundle {
         drv = helloLinux;
         format = "dmg";
@@ -156,8 +168,7 @@ in
           os = "darwin";
         };
       }
-    else
-      null;
+    else null;
 
   hello-nsis = bundler.bundle {
     drv = helloWindows;
@@ -188,26 +199,30 @@ in
   hello-flatpak = bundler.bundle {
     drv = helloLinux;
     format = "flatpak";
-    info = commonInfo // {
-      flatpak.finishArgs = [
-        "--share=ipc"
-        "--socket=fallback-x11"
-      ];
-    };
+    info =
+      commonInfo
+      // {
+        flatpak.finishArgs = [
+          "--share=ipc"
+          "--socket=fallback-x11"
+        ];
+      };
   };
 
   hello-snap = bundler.bundle {
     drv = helloLinux;
     format = "snap";
-    info = commonInfo // {
-      snap = {
-        confinement = "strict";
-        plugs = [
-          "home"
-          "network"
-        ];
+    info =
+      commonInfo
+      // {
+        snap = {
+          confinement = "strict";
+          plugs = [
+            "home"
+            "network"
+          ];
+        };
       };
-    };
   };
 
   hello-pkg = bundler.bundle {
@@ -223,15 +238,17 @@ in
   hello-productbuild = bundler.bundle {
     drv = helloLinux;
     format = "productbuild";
-    info = commonInfo // {
-      productbuild = {
-        title = "Hello Installer";
-        organization = "com.example";
-        welcome = pkgs.writeText "welcome.html" "<html><body><h1>Hello</h1></body></html>";
-        license = pkgs.writeText "license.txt" "MIT.";
-        conclusion = pkgs.writeText "conclusion.html" "<html><body>Installed.</body></html>";
+    info =
+      commonInfo
+      // {
+        productbuild = {
+          title = "Hello Installer";
+          organization = "com.example";
+          welcome = pkgs.writeText "welcome.html" "<html><body><h1>Hello</h1></body></html>";
+          license = pkgs.writeText "license.txt" "MIT.";
+          conclusion = pkgs.writeText "conclusion.html" "<html><body>Installed.</body></html>";
+        };
       };
-    };
     target = {
       arch = "x86_64";
       os = "darwin";
@@ -359,7 +376,7 @@ in
       };
       "x86_64-darwin" = {
         drv = helloLinux;
-        formats = [ "tar.gz" ];
+        formats = ["tar.gz"];
       };
       "x86_64-windows" = {
         drv = helloWindows;
@@ -374,9 +391,11 @@ in
   hello-brew-linux = bundler.bundle {
     drv = helloLinux;
     format = "brew";
-    info = commonInfo // {
-      downloadUrl = "https://example.com/releases/hello-linux.tar.gz";
-    };
+    info =
+      commonInfo
+      // {
+        downloadUrl = "https://example.com/releases/hello-linux.tar.gz";
+      };
     target = {
       arch = "x86_64";
       os = "linux";

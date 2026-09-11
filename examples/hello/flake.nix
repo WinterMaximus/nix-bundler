@@ -7,16 +7,14 @@
     nix-bundle-app.url = "path:../..";
   };
 
-  outputs =
-    {
-      nixpkgs,
-      flake-utils,
-      nix-bundle-app,
-      ...
-    }:
+  outputs = {
+    nixpkgs,
+    flake-utils,
+    nix-bundle-app,
+    ...
+  }:
     flake-utils.lib.eachDefaultSystem (
-      system:
-      let
+      system: let
         pkgs = nixpkgs.legacyPackages.${system};
         bundler = nix-bundle-app.lib.mkLib pkgs;
 
@@ -25,8 +23,7 @@
           homepage = "https://example.com";
           license = "MIT";
         };
-      in
-      {
+      in {
         packages = {
           deb = bundler.bundle {
             drv = pkgs.hello;
